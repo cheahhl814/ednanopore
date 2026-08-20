@@ -1,0 +1,20 @@
+{
+  "marker": "16S",
+  "min_length": 350,
+  "max_length": 1600,
+  "min_qual": 10,
+  "kingdoms": "Bacteria,Archaea",
+  "daa_level": "Genus",
+  "correlation_level": "Genus",
+  "target_ranks": "Phylum,Family,Genus",
+  "geocurate": false,
+  "pipeline_variant": "consensus",
+  "classifier": "minimap2",
+  "medaka_model": "r1041_e82_400bps_sup_v5.0.0",
+  "cluster_min_identity": 0.85,
+  "cluster_min_coverage_fraction": 0.8,
+  "yacrd_min_coverage": 0.4,
+  "yacrd_min_length": 100,
+  "minimap2_min_ref_coverage": 0.8,
+  "minimap2_min_pct_identity": 0.97
+}

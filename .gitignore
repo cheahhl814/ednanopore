@@ -1,0 +1,27 @@
+# Nextflow work directories
+work/
+.nextflow/
+.nextflow.log*
+results/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Pixi lock files (keep toml, skip lock)
+# env/*/pixi.lock  # keep lock for reproducibility
+
+# Reference database downloads (large, runtime)
+assets/

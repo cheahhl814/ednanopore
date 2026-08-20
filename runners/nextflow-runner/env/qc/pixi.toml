@@ -1,0 +1,12 @@
+[workspace]
+channels = ["conda-forge", "bioconda", "anaconda"]
+name = "qc"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+chopper = ">=0.8.0,<0.9"
+cutadapt = ">=5.2,<6"
+nanoplot = ">=1.46.0,<2"
