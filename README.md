@@ -1,305 +1,170 @@
 # nf-edna-nanopore
 
-**End-to-end Nanopore 16S eDNA metabarcoding pipeline — agent-orchestrated via Nextflow DSL2**
+[![Version](https://img.shields.io/badge/version-0.1.0-blue)](#-installation)
+[![Type](https://img.shields.io/badge/type-agent%20skill-blueviolet)](#-installation)
+[![Built with](https://img.shields.io/badge/built%20with-bioinfo--skill--creator-orange)](https://github.com/cheahhl814/bioinfo-skill-creator)
 
-> v0.1.0 · Two selectable pipeline variants: **consensus** (cluster → medaka-polish → classify) and **read_based** (classify every read directly).
+End-to-end agent orchestration of the nf-edna-nanopore Nextflow DSL2 pipeline for Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding (partial ~350-600bp or full-length ~1500bp amplicons). Ships two selectable pipeline variants — `consensus` (cluster + medaka-polish reads into ASV-like representative sequences, then classify, reusing nf-edna's decontam/diversity/association stages) and `read_based` (classify every read directly, mirroring ONT's own wf-16s, no clustering). Use when the user has ONT/MinION/PromethION 16S amplicon reads — nf-edna's Illumina-oriented 16S preset (NGmerge PE-merge + VSEARCH UNOISE3 + IdTaxa) is not appropriate for single-read, higher-error ONT data. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (Variant A only, downstream).
 
----
+**Repository**: https://github.com/cheahhl814/nf-edna-nanopore
 
-## What it does
+> [!NOTE]
+> Current version: **v0.1.0** (updated 2026-08-19).
 
-`nf-edna-nanopore` processes Oxford Nanopore (ONT/MinION/PromethION) 16S rRNA amplicon reads through a complete eDNA metabarcoding workflow: quality control, classification, and (for the consensus variant) decontamination, diversity analysis, and association testing.
+## Contents
 
-It ships **two pipeline variants** selectable at intake:
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Pipeline overview](#-pipeline-overview)
+- [Tools](#-tools)
+- [Update check](#-update-check)
+- [Repository layout](#-repository-layout)
+- [Hard guarantees](#-hard-guarantees)
+- [Nextflow runner](#-nextflow-runner)
+- [Provenance](#-provenance)
 
-| Variant | Entry point | Stages | Best for |
-|---|---|---|---|
-| **consensus** (default) | `main-consensus.nf` | QC → cluster → decontam → classify → diversity → association | Publication-grade work: ASV-like rep-seqs, phylogenetic diversity, sequence-based decontam, geocuration, GBIF publishing |
-| **read_based** | `main-readbased.nf` | QC → classify → decontam (taxon-level) | Quick screening, very high sample counts, or when clustering-parameter sensitivity is a concern |
+## 🚀 Installation
 
-Both variants share the same **QC module** (Chopper + cutadapt + NanoPlot) and **classification** step; they diverge at the clustering/denoising stage.
+This is an **agent skill**, not a user-facing library. The recommended install path is to let your AI agent import it.
 
-### When to use this skill
+**Option A — give your agent this prompt (recommended):**
 
-- You have **Nanopore-sequenced** 16S rRNA amplicon reads (partial ~350–600 bp or full-length ~1500 bp).
-- You want ASVs/taxonomy/diversity from ONT data.
-- You want to **compare** consensus vs. read-based classification on the same dataset.
-
-### When NOT to use this skill
-
-- Your reads are **Illumina** short reads → use `nf-edna`'s `16s.json` preset instead.
-- Your reads are **not yet basecalled or demultiplexed** → do that first.
-- Your marker is **not 16S** → not supported in v0.1.0.
-
----
-
-## Pipeline architecture
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                        nf-edna-nanopore                              │
-│                                                                     │
-│  ┌──────────┐                                                       │
-│  │ preflight │  Gather params, validate inputs, write               │
-│  │ (intake)  │  pipeline_state.json with GO/NO-GO verdict           │
-│  └─────┬─────┘                                                       │
-│        │                                                             │
-│  ┌─────▼─────────────────────────────────────────────────────────┐  │
-│  │                       run                                     │  │
-│  │                                                               │  │
-│  │   ┌─── Variant A: consensus ───────────────────────────┐      │  │
-│  │   │  QC → cluster → decontam → classify → diversity   │      │  │
-│  │   │                                     → association  │      │  │
-│  │   └────────────────────────────────────────────────────┘      │  │
-│  │                                                               │  │
-│  │   ┌─── Variant B: read_based ──────────────────────────┐      │  │
-│  │   │  QC → classify → decontam (taxon-level)            │      │  │
-│  │   └────────────────────────────────────────────────────┘      │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-│        │                                                             │
-│  ┌─────▼──────────┐                                                  │
-│  │   interpret     │  Generate report.md + narrative.md              │
-│  └─────────────────┘                                                  │
-│                                                                     │
-│  ┌─────────────────┐                                                 │
-│  │   reference-db  │  Catalog + download/build reference assets       │
-│  └─────────────────┘                                                 │
-└──────────────────────────────────────────────────────────────────────┘
+```text
+Install the nf-edna-nanopore skill from
+https://github.com/cheahhl814/nf-edna-nanopore —
+clone it into your agent's skills directory (the path your agent watches
+for skills) and run `pixi install` from that directory. Then read the
+skill's SKILL.md to understand its phases and the Input/Output contract
+for each. Confirm when the environment is ready.
 ```
 
----
-
-## Quick start
-
-### Prerequisites
-
-- **Nextflow ≥ 23.10.0** (DSL2-compatible release; `nextflow.config` requires `!>=24.04.0`)
-- **Pixi** — manages per-stage tool environments (`pixi install` in the runner directory)
-- **git**
-
-### 1. Prepare reference databases
-
-Run the `reference-db/` sub-skill first to download/build the classifier reference assets:
-
-| Classifier mode | Required assets | How to get them |
-|---|---|---|
-| `minimap2` (default) | `ref_mmi` + `tax_lookup` TSV | `reference-db/` §1 (NCBI RefSeq Targeted Loci) |
-| `kraken2` | `kraken2_db` directory | `reference-db/` §2 (pre-built Kraken2 16S) |
-| `idtaxa` (consensus variant only) | `idtaxa_model` RDS | `reference-db/` §3 (SILVA DECIPHER IdTaxa) |
-
-### 2. Run intake (preflight)
+**Option B — manual install:**
 
 ```bash
-# The agent reads your manifest, metadata, and parameters,
-# validates everything, and writes pipeline_state.json
-# with a GO / GO-WITH-WARNINGS / NO-GO verdict.
+git clone https://github.com/cheahhl814/nf-edna-nanopore.git
+cd nf-edna-nanopore
+pixi install
 ```
 
-Provide:
-- Sample manifest (CSV: `sample-id,absolute-filepath` — single-end ONT only)
-- Metadata TSV (must include `sample-id` + `is_negative` columns)
-- Primer sequences (forward + reverse)
-- Amplicon length range (`min_length`, `max_length`)
-- Classifier mode + reference asset paths
-- `medaka_model` (consensus variant only — must match your flow cell chemistry)
-- Grouping variable + reference level (consensus variant only)
+> [!TIP]
+> `pixi install` resolves every pinned tool from `pixi.toml` (channels: conda-forge, bioconda) into an isolated `.pixi/` environment — no system-wide installs, no version conflicts with other skills.
 
-### 3. Run the pipeline
+## 💡 Usage
+
+The skill is designed to be driven by an AI agent: the agent reads the master `SKILL.md`, detects the current phase from the filesystem state of your run directory, and routes to the right sub-skill.
+
+### Natural-language prompts that trigger the skill
+
+```text
+Nanopore 16S metabarcoding
+ONT 16S amplicon
+MinION 16S eDNA
+long-read 16S classification
+full-length 16S nanopore
+```
+
+### Manual phase execution
+
+If you prefer to drive the phases yourself (or want to re-run a single phase):
 
 ```bash
-# Variant A (consensus):
-nextflow run runners/nextflow-runner/main-consensus.nf \
-  -params-file runners/nextflow-runner/params/16s-nanopore.json \
-  -params-file results/{run_id}/params.json \
-  -c runners/nextflow-runner/nextflow.config
+# Set your run directory (all phase artifacts land here)
+RUN_DIR=/path/to/run-dir
 
-# Variant B (read_based):
-nextflow run runners/nextflow-runner/main-readbased.nf \
-  -params-file runners/nextflow-runner/params/16s-nanopore.json \
-  -params-file results/{run_id}/params.json \
-  -c runners/nextflow-runner/nextflow.config
+pixi run preflight   # Phase 1 — validate inputs, write preflight.md + params.json
+pixi run run         # Phase 2 — execute the workflow (after preflight ≥ GO)
+pixi run qc          # Phase 3 — build the final report (after run completes)
+pixi run debug       # On failure — interpret stderr via the signature library
+pixi run battle-test # Verify the skill's structural integrity
 ```
 
-### 4. Interpret results
+> [!IMPORTANT]
+> Each phase has an explicit **Inputs/Outputs contract** at the top of its sub-skill `SKILL.md`. If the upstream artifact is missing (e.g. you run `run` before `preflight` passed), the sub-skill refuses to proceed and tells you which phase to run first. Phases are gated on purpose — don't skip them.
 
-The `interpret/edna-nanopore-interpret` sub-skill generates:
-- `<run_id>-report.md` — structured report with QC, taxonomy, diversity (consensus only), association (consensus only)
-- `narrative.md` — plain-language summary suitable for a manuscript Results section
+## 🔬 Pipeline overview
 
----
+The analysis follows a phased evidence chain. Each phase consumes the artifacts of the previous phase and gates progression with a Go/No-Go check.
 
-## Output structure
+| # | Phase | Goal | Sub-skill | Artifact produced |
+|:--|:------|:-----|:----------|:------------------|
+| **1** | **Interpret** | **v0.1.0.** Initial version. Adds the canonical BettaMt structure (§0 Inputs/Outputs contract, §0.5 Ask-User Stop Points | `interpret/` | `$RUN_DIR/interpret-artifact.md` |
+| **2** | **Preflight** | **v0.1.0.** Initial version. Adds the canonical BettaMt / `bettamt-preflight` structure (§0 Inputs/Outputs contract, §0. | `preflight/` | `$RUN_DIR/preflight.md` |
+| **3** | **Run** | **v0.1.0.** Initial version. Adds the canonical BettaMt structure (§0 Inputs/Outputs contract, §0.5 Ask-User Stop Points | `run/` | `$RUN_DIR/run-summary.md` |
 
+> [!TIP]
+> Read each sub-skill's `SKILL.md` for the full procedure, its ask-user stop points, and its signature library (stderr pattern → cause → fix).
+
+## 🧰 Tools
+
+All tools are resolved from conda-forge/bioconda via the pinned `pixi.toml`.
+
+| Tool | Version | Role |
+|:-----|:--------|:-----|
+
+Tool usage is grounded in the offline `docs-corpus/` snapshots (version-matched `--help`/`man` captures, upstream repo docs, and web docs as fallback) — the agent reads these instead of guessing flags.
+
+## 🔄 Update check
+
+Every skill built with [bioinfo-skill-creator](https://github.com/cheahhl814/bioinfo-skill-creator) ships a self-update check that compares the deployed git SHA against this upstream repo via `git fetch` — no GitHub API call, no extra dependencies.
+
+```bash
+pixi run update-check
 ```
-results/{run_id}/
-├── pipeline_state.json              # Run state, variant, verdict, completed stages
-├── run.log
-├── params.json                      # Merged run parameters
-├── intake_evidence.txt              # Preflight evidence log
-├── qc_output/                       # Chopper + cutadapt + NanoPlot
-├── cluster_output/                   # Variant A only: minimap2 selfmap + yacrd + medaka
-├── asv_table/                       # Variant A only: feature table + rep-seqs
-├── taxonomy/                         # Classification results (both variants)
-├── diversity_output/                 # Variant A only (v1)
-├── association_output/                # Variant A only (v1)
-├── run_summary.json
-├── {run_id}-report.md
-└── narrative.md
-```
 
----
+| Verdict | Exit | Meaning |
+|:--------|:-----|:--------|
+| `UP-TO-DATE` | 0 | Local HEAD matches origin/HEAD |
+| `LOCAL-AHEAD` | 0 | Unpushed local commits; no action needed |
+| `BEHIND-BY-N` | 1 | Upstream is N commits ahead → re-pull/re-sync from this repo |
+| `OFFLINE` | 2 | `git fetch` failed; informational only |
+| `NO-ORIGIN` | 2 | No `origin` remote configured; informational only |
 
-## Skill structure
+## 📁 Repository layout
 
-This repository is a **meta-skill** (AiX-BIO convention) — a router that delegates to sub-skills:
-
-```
+```text
 nf-edna-nanopore/
-├── SKILL.md                              # Router / orchestrator
-├── README.md                             # This file
-├── preflight/
-│   └── edna-nanopore-intake/
-│       └── SKILL.md                      # Validate inputs, write pipeline_state.json
-├── run/
-│   └── edna-nanopore-run/
-│       └── SKILL.md                      # Execute the correct Nextflow variant
-├── interpret/
-│   └── edna-nanopore-interpret/
-│       └── SKILL.md                      # Generate report + narrative
-├── reference-db/
-│   ├── SKILL.md                          # Catalog + download/build reference assets
-│   ├── preflight/
-│   │   └── reference-db-preflight/
-│   │       └── SKILL.md                  # Validate reference DB inputs
-│   ├── run/
-│   │   └── reference-db-run/
-│   │       └── SKILL.md                  # Build/download reference DBs
-│   ├── CATALOG_SECTION_KRAKEN2_16S.md
-│   ├── CATALOG_SECTION_TARGETED_LOCI.md
-│   └── bin/
-│       └── build_tax_lookup.py           # Build taxonomy lookup from NCBI
-└── runners/
-    └── nextflow-runner/
-        ├── main-consensus.nf             # Variant A entry point
-        ├── main-readbased.nf            # Variant B entry point
-        ├── nextflow.config              # Pipeline configuration
-        ├── params/
-        │   └── 16s-nanopore.json         # Flexible 16S preset (350–1600 bp)
-        ├── modules/
-        │   ├── qc.nf                    # Chopper + cutadapt + NanoPlot
-        │   ├── cluster_consensus.nf     # minimap2 selfmap + yacrd + medaka
-        │   ├── merge_decontam.nf        # ASV table merge + decontam
-        │   ├── classify_consensus.nf    # Classify polished consensus seqs
-        │   ├── classify_reads.nf        # Classify every read (Variant B)
-        │   ├── diversity.nf             # Alpha + beta diversity
-        │   └── association.nf           # Differential abundance + correlation
-        ├── env/                          # Pixi per-stage environments
-        │   ├── qc/pixi.toml
-        │   ├── cluster/pixi.toml
-        │   ├── classification/pixi.toml
-        │   ├── association/pixi.toml
-        │   ├── diversity/pixi.toml
-        │   └── decontam/
-        │       ├── pixi.toml
-        │       ├── Manifest.toml
-        │       └── Project.toml
-        └── bin/                          # Helper scripts
-            ├── minimap2_lca.py
-            ├── merge_tables.R
-            ├── filter_table.jl
-            ├── decontam.jl
-            ├── decontam_by_taxon.jl
-            ├── filter_idtaxa_by_confidence.jl
-            ├── idtaxa_rds.R
-            ├── alpha_diversity.R
-            ├── beta_diversity.R
-            ├── community_typing.R
-            ├── differential_abundance.R
-            ├── correlation_analysis.R
-            ├── agglomerate_data.R
-            └── root_tree.R
+├── SKILL.md                 # Master orchestrator (router — start here)
+├── README.md                # This file
+├── pixi.toml                # Pinned tool environment (pixi install)
+├── docs-corpus/             # Offline snapshots of upstream tool docs
+├── interpret/            # Phase sub-skill
+├── preflight/            # Phase sub-skill
+├── run/            # Phase sub-skill
+├── bin/
+│   └── skill-update-check.py  # Self-update check (pixi run update-check)
+└── bin/
+    └── scaffold-render.py     # Reproducibility — re-render the skill from params.json
 ```
 
----
+## 🔒 Hard guarantees
 
-## Pipeline variants in detail
+- **Filesystem evidence chain** — every phase emits the artifact the next phase consumes; the boundary between phases is the filesystem, not agent memory.
+- **Docs-grounded tool usage** — tool flags come from `docs-corpus/`, never from the agent's memory.
+- **Explicit stop points** — ambiguous decisions are surfaced to you as *Evidence + Recommend + Options*, not auto-picked.
+- **Reproducible environments** — every tool is pinned in `pixi.toml` and resolved via pixi.
 
-### Variant A — consensus (`main-consensus.nf`)
+## 🚀 Nextflow runner
 
-1. **QC** — Chopper (quality + length filtering) → cutadapt (primer trimming) → NanoPlot
-2. **Cluster** — minimap2 self-map → yacrd (detect chimeras) → medaka consensus polishing → ASV-like feature table + representative sequences
-3. **Decontam** — sequence-keyed prevalence decontam (reuses nf-edna's `decontam.jl`)
-4. **Classify** — minimap2-LCA / kraken2 / idtaxa against the chosen reference
-5. **Diversity** — alpha + beta diversity (reuses nf-edna's `diversity.nf`)
-6. **Association** — differential abundance + correlation (reuses nf-edna's `association.nf`)
+For production / HPC / cohort runs, the skill ships a thin Nextflow DSL2 runner at `runners/nextflow-runner/` (nf-core-style resource labels, pinned containers, trace/report/timeline enabled).
 
-### Variant B — read_based (`main-readbased.nf`)
+```bash
+# Stub smoke test (builds the DAG without executing)
+nextflow run runners/nextflow-runner/main.nf -profile test -stub-run
 
-1. **QC** — same Chopper + cutadapt + NanoPlot
-2. **Classify** — every read classified directly (no clustering)
-3. **Decontam** — taxon-level mean-relative-abundance decontam (`decontam_by_taxon.jl`)
+# Real run
+nextflow run runners/nextflow-runner/main.nf --input <samplesheet.csv> --outdir <outdir> -profile docker
+```
 
-**Variant B limitations (v0.1.0):** no representative sequences → no phylogenetic diversity/UniFrac, no sequence-based decontam, no geocuration, no edna-visualize/edna-gbif-publish chaining.
+The bash recipes remain the source of truth; the runner is a thin executor.
 
----
+## Provenance
 
-## Classifiers
+Built with the [bioinfo-skill-creator](https://github.com/cheahhl814/bioinfo-skill-creator) meta-skill (v1.1.0), following the AiX-BIO skill convention (preflight → build → debug → battle-test evidence chain). Pattern adopted from:
 
-| Mode | Input | Speed | Notes |
-|---|---|---|---|
-| `minimap2` (default) | `ref_mmi` + `tax_lookup` TSV | Moderate | LCA assignment; mirrors ONT's `wf-16s`; works for both variants |
-| `kraken2` | `kraken2_db` directory | Fast | K-mer based; works for both variants |
-| `idtaxa` | `idtaxa_model` RDS | Moderate | DECIPHER IdTaxa; **consensus variant only** (needs polished sequences) |
-
----
-
-## Composability with other AiX-BIO skills
-
-| Skill | When to chain |
-|---|---|
-| `reference-db` (this repo) | Run **before** the first nf-edna-nanopore run if you don't yet have classifier reference assets |
-| `nf-edna` | Reference for reused downstream modules (diversity, association, decontam, agglomerate). Also for IdTaxa model training if the opt-in mode needs a custom model |
-| `edna-visualize` | Variant A only, after interpret |
-| `edna-gbif-publish` | Variant A only, after interpret |
-
----
-
-## Parameters
-
-### Preset: `params/16s-nanopore.json`
-
-The single flexible 16S preset covers both partial (~600 bp) and near-full-length (~1500 bp) amplicons — `min_length` and `max_length` are **run-time parameters**, not separate preset files:
-
-| Parameter | Default | Notes |
-|---|---|---|
-| `marker` | `16S` | Only marker in v0.1.0 |
-| `min_length` | 350 | Override at intake for your amplicon |
-| `max_length` | 1600 | Override at intake for your amplicon |
-| `min_qual` | 10 | Chopper quality threshold |
-| `kingdoms` | `Bacteria,Archaea` | Kingdom filter |
-| `classifier` | `minimap2` | `minimap2` / `kraken2` / `idtaxa` |
-| `pipeline_variant` | `consensus` | `consensus` / `read_based` |
-| `medaka_model` | `r1041_e82_400bps_sup_v5.0.0` | Consensus variant only; must match flow cell chemistry |
-| `cluster_min_identity` | 0.85 | Consensus: clustering threshold |
-| `cluster_min_coverage_fraction` | 0.8 | Consensus: clustering coverage |
-| `yacrd_min_coverage` | 0.4 | Consensus: yacrd chimera filter |
-| `minimap2_min_pct_identity` | 0.97 | Classification identity threshold |
-| `minimap2_min_ref_coverage` | 0.8 | Classification reference coverage |
-| `idtaxa_threshold` | 60 | IdTaxa bootstrap confidence (consensus + idtaxa only) |
-| `decontam_threshold` | 0.1 | Decontam prevalence/ratio threshold |
-
----
+- **BettaMt-agents** — https://github.com/cheahhl814/BettaMt-agents
+- **bacterial-genome-analysis** — https://github.com/cheahhl814/bacterial-genome-analysis
+- **amr-gene-screening** — https://github.com/cheahhl814/amr-gene-screening
 
 ## License
 
-See individual files and third-party tool licenses. The pipeline code is by Cheah Hong Leong. Reference databases (NCBI RefSeq, SILVA, Kraken2) are subject to their respective terms — see `reference-db/SKILL.md` and the `CATALOG_SECTION_*.md` files for details.
-
----
-
-## Author
-
-**Cheah Hong Leong** · AiX-BIO
-
-## Version
-
-**0.1.0** — Initial release. Two pipeline variants (consensus + read_based), three classifier modes (minimap2 / kraken2 / idtaxa), full QC → classify → decontam/diversity/association chain for Variant A, QC → classify → taxon-decontam for Variant B.
+Released under the MIT License — see the license file in this repository for details.
