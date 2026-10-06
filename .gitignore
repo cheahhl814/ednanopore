@@ -38,3 +38,7 @@ preflight.md
 preflight_evidence.txt
 tool_search_results.txt
 tool-inventory.json
+
+# Handoff files (per-round, regenerable/append-only — never ship to GitHub)
+handoff.md
+handoff-archive.md
