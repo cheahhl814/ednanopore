@@ -1,7 +1,7 @@
 ---
-name: nf-edna-nanopore
-description: End-to-end agent orchestration of the nf-edna-nanopore manual (agent-driven, no Nextflow) pipeline for Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding (partial ~350-600bp or full-length ~1500bp amplicons). Runs three complementary classification methods by default — readbased+minimap2/RefSeq (species-level, every read counted), readbased+IdTaxa/SILVA (broader reference, genus-level ceiling), and consensus+medaka-polish+IdTaxa/SILVA (error-corrected, genus-level) — because no single method is sufficient for this data type; see run/edna-nanopore-run/SKILL.md's case study. Reference-database retrieval (RefSeq Targeted Loci, SILVA/DECIPHER pre-trained IdTaxa, Kraken2 16S indexes) is DELEGATED to the biodb-fetch dependency skill, whose scripts/marker_refs.py + manifest.tsv contract own download execution, md5, retries and license gating; this skill keeps only catalog curation and local index-building. Use when the user has ONT/MinION/PromethION 16S amplicon reads — nf-edna's Illumina-oriented 16S preset (NGmerge PE-merge + VSEARCH UNOISE3 + IdTaxa) is not appropriate for single-read, higher-error ONT data. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (consensus-method outputs only, downstream).
-version: 0.3.0
+name: ednanopore
+description: End-to-end agent orchestration of the ednanopore manual (agent-driven, no Nextflow) pipeline for Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding (partial ~350-600bp or full-length ~1500bp amplicons). Runs three complementary classification methods by default — readbased+minimap2/RefSeq (species-level, every read counted), readbased+IdTaxa/SILVA (broader reference, genus-level ceiling), and consensus+medaka-polish+IdTaxa/SILVA (error-corrected, genus-level) — because no single method is sufficient for this data type; see run/ednanopore-run/SKILL.md's case study. Reference-database retrieval (RefSeq Targeted Loci, SILVA/DECIPHER pre-trained IdTaxa, Kraken2 16S indexes) is DELEGATED to the biodb-fetch dependency skill, whose scripts/marker_refs.py + manifest.tsv contract own download execution, md5, retries and license gating; this skill keeps only catalog curation and local index-building. Use when the user has ONT/MinION/PromethION 16S amplicon reads — nf-edna's Illumina-oriented 16S preset (NGmerge PE-merge + VSEARCH UNOISE3 + IdTaxa) is not appropriate for single-read, higher-error ONT data. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (consensus-method outputs only, downstream).
+version: 0.4.0
 updated: "2026-10-06"
 triggers:
   - "Nanopore 16S metabarcoding"
@@ -9,14 +9,14 @@ triggers:
   - "MinION 16S eDNA"
   - "long-read 16S classification"
   - "full-length 16S nanopore"
-  - "nf-edna-nanopore"
+  - "ednanopore"
 requires:
   - "Pixi (curl -fsSL https://pixi.sh/install.sh | bash) — single root pixi.toml with per-stage [feature.<env>] entries; run tools with `pixi run --manifest-path <skill-root>/pixi.toml -e <env>`"
   - "biodb-fetch skill (github.com/cheahhl814/biodb-fetch, deployed as a sibling skill) — dependency skill; owns reference-database download execution under the manifest.tsv contract (contract_version is verified by this skill's reference-db sub-skill)"
   - "git"
 ---
 
-# Meta-Skill: nf-edna-nanopore
+# Meta-Skill: ednanopore
 
 > **v0.3.0.** Structural rebuild on the bioinfo-skill-creator v1.4.0 standard
 > (single root `pixi.toml` with per-stage `[feature.<env>]`/`[environments]` entries,
@@ -40,7 +40,7 @@ requires:
 > The other major change: v0.1.0 made the scientist choose one of two
 > mutually-exclusive "variants" (`consensus` vs. `read_based`) up front.
 > **v0.2.0 runs three classification methods by default, not one** — see
-> `run/edna-nanopore-run/SKILL.md`'s "Why three methods, not one" section.
+> `run/ednanopore-run/SKILL.md`'s "Why three methods, not one" section.
 > A real cross-method comparison on this project's dataset found a 3.6%
 > / 9.4% / 19.3% spread for one phylum's abundance across the three
 > methods, on identical samples — a gap invisible to anyone running only
@@ -100,9 +100,9 @@ chose to run, per intake's SP) → `interpret`. Otherwise → `run`.
 
 | Detected stage | Route to | Output artifact |
 | --- | --- | --- |
-| `intake` | `preflight/edna-nanopore-intake/SKILL.md` | `results/{run_id}/pipeline_state.json` |
-| `run` | `run/edna-nanopore-run/SKILL.md` | `results/{run_id}/{method}/...` + updated `pipeline_state.json` |
-| `interpret` | `interpret/edna-nanopore-interpret/SKILL.md` | `results/{run_id}/<run_id>-report.md` + `narrative.md`, including a cross-method comparison section |
+| `intake` | `preflight/ednanopore-intake/SKILL.md` | `results/{run_id}/pipeline_state.json` |
+| `run` | `run/ednanopore-run/SKILL.md` | `results/{run_id}/{method}/...` + updated `pipeline_state.json` |
+| `interpret` | `interpret/ednanopore-interpret/SKILL.md` | `results/{run_id}/<run_id>-report.md` + `narrative.md`, including a cross-method comparison section |
 
 ### Operating rule
 
@@ -117,18 +117,18 @@ chose to run, per intake's SP) → `interpret`. Otherwise → `run`.
 
 Three phases:
 
-1. **`preflight/edna-nanopore-intake`** — gather run parameters
+1. **`preflight/ednanopore-intake`** — gather run parameters
    (primer pair, min/max length, classifier-specific reference paths,
    metadata, run_id, sample manifest), validate inputs, write
    `pipeline_state.json`. No `pipeline_variant` field anymore — intake
    resolves parameters for all three methods unless the scientist opts
    out of one.
-2. **`run/edna-nanopore-run`** — read `pipeline_state.json`, run
+2. **`run/ednanopore-run`** — read `pipeline_state.json`, run
    `runners/manual-runner/bin/run_qc.sh` then the three
    `run_{method}.sh` scripts (each shown to and confirmed by the
    scientist before execution), monitor progress, update state after
    each stage.
-3. **`interpret/edna-nanopore-interpret`** — read `run_summary.json`,
+3. **`interpret/ednanopore-interpret`** — read `run_summary.json`,
    produce `<run_id>-report.md` + `narrative.md`, including a
    cross-method comparison table and explicit callouts for any large
    (>2x) disagreements between methods.
@@ -182,16 +182,16 @@ results/{run_id}/
 | Skill | When to chain |
 | --- | --- |
 | `read-qc-trimming` | Not typically needed before this skill — this skill's own QC module does primer trimming + quality/length filtering. |
-| `reference-db` (this repo) | Run **before** the first-ever nf-edna-nanopore run if you don't yet have `ref_mmi`+`tax_lookup` or the IdTaxa `.RData`. |
+| `reference-db` (this repo) | Run **before** the first-ever ednanopore run if you don't yet have `ref_mmi`+`tax_lookup` or the IdTaxa `.RData`. |
 | `nf-edna` | Reference for `idtaxa-training` if you want a custom-trained (non-SILVA) IdTaxa model instead of this skill's bundled one. |
 | `edna-visualize` / `edna-gbif-publish` | `consensus_idtaxa` output only (it's the only method with rep-seqs for phylogenetic placement / Darwin Core records). |
 
 ## What NOT to do
 
-- Do **not** skip `preflight/edna-nanopore-intake`.
+- Do **not** skip `preflight/ednanopore-intake`.
 - Do **not** silently run only one classification method — defaulting to
   one without the scientist explicitly agreeing to the blind-spot
-  trade-off (see `run/edna-nanopore-run/SKILL.md` SP5) reintroduces
+  trade-off (see `run/ednanopore-run/SKILL.md` SP5) reintroduces
   exactly the risk this rewrite exists to close.
 - Do **not** average or silently reconcile a large disagreement between
   methods in a report — surface it as a finding.
@@ -203,5 +203,5 @@ results/{run_id}/
 - **Manuscript writing** → `literature-pipeline`.
 - **GBIF publishing** → `edna-gbif-publish` (from `consensus_idtaxa` output).
 - **Comparing methods** → this is now the default behavior of a single
-  run, not something requiring two separate runs — `interpret/edna-nanopore-interpret`
+  run, not something requiring two separate runs — `interpret/ednanopore-interpret`
   produces the cross-method comparison directly.

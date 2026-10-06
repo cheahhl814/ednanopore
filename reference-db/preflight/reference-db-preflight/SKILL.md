@@ -1,7 +1,7 @@
 ---
 name: reference-db-preflight
-description: Preflight validation for nf-edna-nanopore's reference-db sub-skill. Verifies (1) classifier mode confirmed (minimap2/kraken2/idtaxa), (2) disk space (≥ 2 GB, scaled to the chosen mode), (3) Internet connectivity to the canonical URL (HEAD request), (4) assets directory writable, (5) license accepted, (6) minimap2 available (minimap2 mode only) or DECIPHER + gdown available (idtaxa mode only — gdown is pip-only and not bundled; PEP-668 systems block a plain user install). Produces a GO / GO-WITH-WARNINGS / NO-GO verdict gate before any download or build command is invoked.
-version: 0.3.0
+description: Preflight validation for ednanopore's reference-db sub-skill. Verifies (1) classifier mode confirmed (minimap2/kraken2/idtaxa), (2) disk space (≥ 2 GB, scaled to the chosen mode), (3) Internet connectivity to the canonical URL (HEAD request), (4) assets directory writable, (5) license accepted, (6) minimap2 available (minimap2 mode only) or DECIPHER + gdown available (idtaxa mode only — gdown is pip-only and not bundled; PEP-668 systems block a plain user install). Produces a GO / GO-WITH-WARNINGS / NO-GO verdict gate before any download or build command is invoked.
+version: 0.4.0
 updated: "2026-10-06"
 triggers:
   - "reference-db preflight nanopore"
@@ -15,7 +15,7 @@ requires:
   - "biodb-fetch sibling skill (idtaxa mode — the SILVA DECIPHER model is fetched via its `decipher` key; gdown is bundled in its env, so no venv workaround is needed)"
 ---
 
-# Sub-Skill: reference-db-preflight (nf-edna-nanopore)
+# Sub-Skill: reference-db-preflight (ednanopore)
 
 ## Audience
 
@@ -36,7 +36,7 @@ Use this sub-skill **always** before invoking `run/reference-db-run`. Its verdic
 | --- | --- | --- | --- |
 | `classifier_mode` | enum | yes | `minimap2` (default) / `kraken2` / `idtaxa` |
 | `reference_choice` | str | yes | Shorthand ID (e.g. `ncbi-targeted-loci-16s`, `16s-silva138-kraken2`, `ncbi-16s-18s-kraken2`, `silva-idtaxa`) |
-| `assets_dir` | path | yes | Where the downloaded/built file(s) will be placed (typically `$HOME/data/nf-edna-nanopore/assets/`) |
+| `assets_dir` | path | yes | Where the downloaded/built file(s) will be placed (typically `$HOME/data/ednanopore/assets/`) |
 | `build_required` | bool | no (auto-detected) | `true` for `minimap2` mode (FASTA → MMI build step) |
 
 ### Outputs
@@ -187,7 +187,7 @@ Same logic as `nf-edna/reference-db-preflight` §1 — count PASS/WARN/FAIL acro
 - **`reference-db`** (parent) — invokes this sub-skill from SP0
 - **`run/reference-db-run`** (sibling) — consumes this sub-skill's verdict
 - **`nf-edna/reference-db-preflight`** — analogous preflight for the Illumina pipeline; template source for this file
-- **`preflight/edna-nanopore-intake`** — chains here if a reference path is missing at intake
+- **`preflight/ednanopore-intake`** — chains here if a reference path is missing at intake
 
 ## Verification
 

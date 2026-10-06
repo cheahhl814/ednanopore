@@ -1,10 +1,10 @@
 ---
 name: reference-db
-description: Curated catalog of reference-database sources for nf-edna-nanopore's 16S classifiers — NCBI RefSeq Targeted Loci (minimap2 MMI + taxonomy lookup TSV, the default `minimap2` classifier), pre-built Kraken2 16S indexes (the `kraken2` alt classifier), and SILVA DECIPHER IdTaxa (the opt-in `idtaxa` classifier, reused unmodified from nf-edna). Download EXECUTION is delegated to the biodb-fetch dependency skill (github.com/cheahhl814/biodb-fetch — scripts/marker_refs.py + manifest.tsv contract); this sub-skill keeps curation (which URL/version/license), local index building (minimap2 -d, tax_lookup join, IdTaxa model placement), and verdict gating. Mirrors the BettaMt ask-user-stop-points pattern used by nf-edna's reference-db skill, adapted for Nanopore's minimap2/Kraken2-first classifier stack instead of nf-edna's DECIPHER-only one. Use when the user asks to "get a 16S reference for nf-edna-nanopore", "download the minimap2 16S index", "get a Kraken2 16S database", "where do I get the reference for the Nanopore pipeline", or "build the tax_lookup TSV".
-version: 0.3.0
+description: Curated catalog of reference-database sources for ednanopore's 16S classifiers — NCBI RefSeq Targeted Loci (minimap2 MMI + taxonomy lookup TSV, the default `minimap2` classifier), pre-built Kraken2 16S indexes (the `kraken2` alt classifier), and SILVA DECIPHER IdTaxa (the opt-in `idtaxa` classifier, reused unmodified from nf-edna). Download EXECUTION is delegated to the biodb-fetch dependency skill (github.com/cheahhl814/biodb-fetch — scripts/marker_refs.py + manifest.tsv contract); this sub-skill keeps curation (which URL/version/license), local index building (minimap2 -d, tax_lookup join, IdTaxa model placement), and verdict gating. Mirrors the BettaMt ask-user-stop-points pattern used by nf-edna's reference-db skill, adapted for Nanopore's minimap2/Kraken2-first classifier stack instead of nf-edna's DECIPHER-only one. Use when the user asks to "get a 16S reference for ednanopore", "download the minimap2 16S index", "get a Kraken2 16S database", "where do I get the reference for the Nanopore pipeline", or "build the tax_lookup TSV".
+version: 0.4.0
 updated: "2026-10-06"
 triggers:
-  - "reference for nf-edna-nanopore"
+  - "reference for ednanopore"
   - "download 16S minimap2 index"
   - "get NCBI Targeted Loci 16S"
   - "download Kraken2 16S database"
@@ -19,7 +19,7 @@ requires:
   - "Optional: pixi env with DECIPHER (only for the opt-in idtaxa classifier mode)"
 ---
 
-# Sub-Skill: reference-db (nf-edna-nanopore)
+# Sub-Skill: reference-db (ednanopore)
 
 > **v0.3.0.** Adapted from `nf-edna/reference-db` (v1.1.4). That original catalog is DECIPHER/IdTaxa-only — this pipeline's *default* classifier is `minimap2` (LCA against a reference MMI), with `kraken2` as a fast alt and `idtaxa` as an opt-in third mode. This SKILL.md carries three catalog sections instead of one, structured the same way (canonical source → download → build/validate → license/cadence).
 > **v0.3.0 change:** download execution is now DELEGATED to the **biodb-fetch** dependency skill (github.com/cheahhl814/biodb-fetch) — this sub-skill remains the curation + local-build layer. See §0.6.
@@ -42,7 +42,7 @@ Use this sub-skill when you need to:
 
 **Do NOT use this skill** if:
 
-- You already have the reference files in place — invoke `preflight/edna-nanopore-intake` directly, which will only redirect here if a reference path is missing.
+- You already have the reference files in place — invoke `preflight/ednanopore-intake` directly, which will only redirect here if a reference path is missing.
 - You want a DECIPHER-trained reference for a marker other than 16S, or the Illumina pipeline — use `nf-edna`'s `reference-db` instead.
 - You want to train a *custom* IdTaxa model from a raw FASTA (not SILVA) — chain to `idtaxa-training` (in `nf-edna`) directly.
 
@@ -54,7 +54,7 @@ By convention, evidence/handoff files go to a timestamped directory at the proje
 
 ### 0.5 Master ask-user stop point (SP0)
 
-> **Evidence**: I observed the user wants a 16S reference for nf-edna-nanopore. I checked `pipeline_state.json` (if it exists) for `params.classifier`.
+> **Evidence**: I observed the user wants a 16S reference for ednanopore. I checked `pipeline_state.json` (if it exists) for `params.classifier`.
 > **Recommend**: If `classifier` is already set in `pipeline_state.json`, auto-pick that section's catalog. Otherwise recommend `minimap2` (the pipeline default, §1) unless the user's downstream need points elsewhere (e.g. they mentioned Kraken2 speed, or explicitly want phylogenetically placed IdTaxa trees).
 >
 > Options:
@@ -141,7 +141,7 @@ Download via biodb-fetch's `decipher` key (§0.6 — gdown runs inside its env).
 ## 4. Where downloaded files go
 
 ```
-$ASSETS_DIR/                              # e.g. your project data area/nf-edna-nanopore/assets/
+$ASSETS_DIR/                              # e.g. your project data area/ednanopore/assets/
 ├── 16s_minimap2/
 │   ├── 16S_refseq.mmi                      # minimap2 index (default classifier)
 │   └── tax_lookup.tsv                      # accession -> lineage TSV
@@ -190,12 +190,12 @@ invoke_skill run/reference-db-run
                               ▼
                  ┌──────────────────────┐
                  │   reference-db        │  (this skill — curation + local index build)
-                 │   (nf-edna-nanopore)  │
+                 │   (ednanopore)  │
                  └───────────┬───────────┘
                               │ MMI+TSV (default) / Kraken2 dir (alt) / SILVA .rdata (opt-in)
                               ▼
                  ┌──────────────────────┐
-                 │   nf-edna-nanopore    │  ← main pipeline (uses the reference)
+                 │   ednanopore    │  ← main pipeline (uses the reference)
                  └──────────────────────┘
                               ▲
                               │ (idtaxa mode only, chains to)
@@ -205,12 +205,12 @@ invoke_skill run/reference-db-run
 ```
 
 - **Upstream**: `biodb-fetch` (download execution, manifest.tsv contract) — deploy as a sibling skill before any reference fetch (see §0.6).
-- **Downstream**: `nf-edna-nanopore` consumes the reference for classification (either variant).
+- **Downstream**: `ednanopore` consumes the reference for classification (either variant).
 - **Parallel**: `nf-edna/idtaxa-training` is invoked only if the user wants a custom-trained IdTaxa model instead of the stock SILVA one.
 
 ## 8. Related skills
 
-- **`nf-edna-nanopore`** (parent pipeline) — consumes `ref_mmi`+`tax_lookup` (default), `kraken2_db` (alt), or `idtaxa_model` (opt-in, Variant A only)
+- **`ednanopore`** (parent pipeline) — consumes `ref_mmi`+`tax_lookup` (default), `kraken2_db` (alt), or `idtaxa_model` (opt-in, Variant A only)
 - **`nf-edna/reference-db`** — sibling for the Illumina pipeline; source of the reused SILVA/IdTaxa catalog row and the BettaMt template this sub-skill mirrors
 - **`nf-edna/idtaxa-training`** — invoked only for the opt-in idtaxa mode if a custom (non-SILVA) reference is wanted
 

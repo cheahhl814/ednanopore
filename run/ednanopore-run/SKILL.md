@@ -1,18 +1,18 @@
 ---
-name: edna-nanopore-run
-description: "Execute the nf-edna-nanopore manual (agent-driven) pipeline: QC, then BOTH readbased classification methods (minimap2/RefSeq and IdTaxa/SILVA) plus the consensus+IdTaxa/SILVA method, by default, per CHANGELOG.md's conclusion that no single approach is sufficient for Nanopore 16S eDNA. No Nextflow — every stage is a direct shell invocation of a script under runners/manual-runner/bin/, run via the Bash tool and shown to the scientist before execution. Monitors progress, updates pipeline_state.json after each stage. Has explicit ask-user stop points (SP1-SP5) that fire only when evidence is ambiguous. Triggers: 'run Nanopore 16S pipeline', 'run nf-edna-nanopore', 'continue Nanopore run', 'Nanopore QC stage', 'Nanopore classify', 'Nanopore consensus clustering'."
-version: 0.3.0
+name: ednanopore-run
+description: "Execute the ednanopore manual (agent-driven) pipeline: QC, then BOTH readbased classification methods (minimap2/RefSeq and IdTaxa/SILVA) plus the consensus+IdTaxa/SILVA method, by default, per CHANGELOG.md's conclusion that no single approach is sufficient for Nanopore 16S eDNA. No Nextflow — every stage is a direct shell invocation of a script under runners/manual-runner/bin/, run via the Bash tool and shown to the scientist before execution. Monitors progress, updates pipeline_state.json after each stage. Has explicit ask-user stop points (SP1-SP5) that fire only when evidence is ambiguous. Triggers: 'run Nanopore 16S pipeline', 'run ednanopore', 'continue Nanopore run', 'Nanopore QC stage', 'Nanopore classify', 'Nanopore consensus clustering'."
+version: 0.4.0
 updated: "2026-10-06"
 triggers:
   - "run Nanopore 16S pipeline"
-  - "run nf-edna-nanopore"
+  - "run ednanopore"
   - "continue Nanopore run"
   - "Nanopore QC stage"
   - "Nanopore classify"
   - "Nanopore consensus clustering"
 ---
 
-# edna-nanopore-run
+# ednanopore-run
 
 > **v0.2.0.** Nextflow removed. The pipeline is now **agent-driven**: an
 > agent (you) invokes the scripts under `runners/manual-runner/bin/`
@@ -92,11 +92,11 @@ method-sensitivity, so don't pre-commit to one method.
 ## Do NOT use this skill
 
 - If there is **no `pipeline_state.json`** → invoke
-  `preflight/edna-nanopore-intake` first.
+  `preflight/ednanopore-intake` first.
 - If the upstream intake verdict is **`NO-GO`** → fix the failing evidence
   item first, then re-run intake.
 - If you want to **interpret already-completed results** → invoke
-  `interpret/edna-nanopore-interpret` instead.
+  `interpret/ednanopore-interpret` instead.
 - If you only want to tail a log → use `tail -f` directly, no skill
   needed.
 
@@ -106,9 +106,9 @@ method-sensitivity, so don't pre-commit to one method.
 
 | Path | Source | Required? | Notes |
 | --- | --- | --- | --- |
-| `results/{run_id}/pipeline_state.json` | `preflight/edna-nanopore-intake` | yes | Must exist with `verdict ∈ {GO, GO-WITH-WARNINGS}`. Drives which stages have run and what's next. |
-| `results/{run_id}/params.json` | `preflight/edna-nanopore-intake` | yes | Run-specific parameter overrides, merged on top of `runners/manual-runner/defaults/16s-nanopore.json`. |
-| `results/{run_id}/manifest.tsv` | `preflight/edna-nanopore-intake` | yes | `sample_id<TAB>fastq_filename`, one row per sample (no header). Consumed directly by every `bin/run_*.sh` script. |
+| `results/{run_id}/pipeline_state.json` | `preflight/ednanopore-intake` | yes | Must exist with `verdict ∈ {GO, GO-WITH-WARNINGS}`. Drives which stages have run and what's next. |
+| `results/{run_id}/params.json` | `preflight/ednanopore-intake` | yes | Run-specific parameter overrides, merged on top of `runners/manual-runner/defaults/16s-nanopore.json`. |
+| `results/{run_id}/manifest.tsv` | `preflight/ednanopore-intake` | yes | `sample_id<TAB>fastq_filename`, one row per sample (no header). Consumed directly by every `bin/run_*.sh` script. |
 | `runners/manual-runner/defaults/16s-nanopore.json` | this skill (bundled) | yes | The single flexible default-parameter set; see its `qc` / `readbased_minimap2` / `readbased_idtaxa` / `consensus` sub-objects. |
 
 ### Outputs (produced)
@@ -116,7 +116,7 @@ method-sensitivity, so don't pre-commit to one method.
 | Path | Format | Owner | Notes |
 | --- | --- | --- | --- |
 | `results/{run_id}/pipeline_state.json` | JSON (updated) | this skill | After each successful stage: extend `completed_stages`, update `last_stage`, append new paths to `outputs`. **Never** update on failure. |
-| `results/{run_id}/run_summary.json` | JSON | this skill | Compact run summary read by `interpret/edna-nanopore-interpret`. Written once all three classification methods (or the subset the scientist chose at SP5) are complete. |
+| `results/{run_id}/run_summary.json` | JSON | this skill | Compact run summary read by `interpret/ednanopore-interpret`. Written once all three classification methods (or the subset the scientist chose at SP5) are complete. |
 | `results/{run_id}/qc/{sample}/...` | per-sample FASTQs + logs | `bin/run_qc.sh` | Shared QC output, consumed by all three classification methods. |
 | `results/{run_id}/readbased_minimap2/...` | taxon-abundance TSVs | `bin/run_readbased_minimap2.sh` | |
 | `results/{run_id}/readbased_idtaxa/...` | taxon-abundance TSVs | `bin/run_readbased_idtaxa.sh` | |
@@ -134,7 +134,7 @@ Before running any stage, **read `pipeline_state.json.verdict`**. If
 
 | Trigger | Action |
 | --- | --- |
-| `pipeline_state.json` missing OR `verdict` is `NO-GO`/missing | Hard-stop: "No valid `pipeline_state.json` for run `{run_id}`. Invoke `preflight/edna-nanopore-intake` first." |
+| `pipeline_state.json` missing OR `verdict` is `NO-GO`/missing | Hard-stop: "No valid `pipeline_state.json` for run `{run_id}`. Invoke `preflight/ednanopore-intake` first." |
 | `verdict == GO-WITH-WARNINGS` | Ask: "Verdict is `GO-WITH-WARNINGS` (`<failing items>`). (A) continue anyway, (B) re-run intake to fix the warnings (recommended), (C) abort" |
 
 **Auto-pick when**: `verdict == GO`.
@@ -143,9 +143,9 @@ Before running any stage, **read `pipeline_state.json.verdict`**. If
 
 | Trigger | Action |
 | --- | --- |
-| `pipeline` field is not `nf-edna-nanopore`, or `marker` is not `16S` | Ask: "State at `<path>` doesn't look like nf-edna-nanopore intake. (A) wrong `run_id` — give me the right one, (B) typo in the state file — I'll fix it, (C) abort" |
+| `pipeline` field is not `ednanopore`, or `marker` is not `16S` | Ask: "State at `<path>` doesn't look like ednanopore intake. (A) wrong `run_id` — give me the right one, (B) typo in the state file — I'll fix it, (C) abort" |
 
-**Auto-pick when**: `pipeline == "nf-edna-nanopore"` AND `marker == "16S"`.
+**Auto-pick when**: `pipeline == "ednanopore"` AND `marker == "16S"`.
 
 ### SP3 — Failure-handling choice
 
@@ -180,7 +180,7 @@ Before running any stage, **read `pipeline_state.json.verdict`**. If
 ## Prerequisites
 
 - **Environment**: `pixi` on PATH (validated by
-  `preflight/edna-nanopore-intake` evidence item E6). No Nextflow, no
+  `preflight/ednanopore-intake` evidence item E6). No Nextflow, no
   Java — those are no longer dependencies of this skill.
 - **Upstream evidence**: `results/{run_id}/pipeline_state.json` with
   verdict ≥ `GO-WITH-WARNINGS` (SP1).
@@ -208,7 +208,7 @@ writes to its own `results/{run_id}/{method}/` directory):
 | `qc` | `readbased_minimap2` | `bin/run_readbased_minimap2.sh` |
 | `qc` (or `readbased_minimap2` done) | `readbased_idtaxa` | `bin/run_readbased_idtaxa.sh` |
 | `qc` (or either above done) | `consensus_idtaxa` | `bin/run_consensus_idtaxa.sh` |
-| all three classification stages done | — | suggest `interpret/edna-nanopore-interpret` |
+| all three classification stages done | — | suggest `interpret/ednanopore-interpret` |
 
 If `completed_stages` has ≥ 2 entries and the scientist only said
 "continue", SP4 fires. If the scientist asked to skip one of the three
@@ -319,11 +319,11 @@ summary = {
     "outputs": state.get("outputs", {}),
     "params_used": state.get("params_used", {}),
     "notes": [
-        "This run uses nf-edna-nanopore v0.2.0's default of running all three "
+        "This run uses ednanopore v0.2.0's default of running all three "
         "classification methods (readbased_minimap2, readbased_idtaxa, "
         "consensus_idtaxa) unless the scientist explicitly chose to skip one "
         "(SP5). Large disagreements between methods are expected and should "
-        "be investigated (see run/edna-nanopore-run/SKILL.md's case study), "
+        "be investigated (see run/ednanopore-run/SKILL.md's case study), "
         "not treated as noise."
     ],
 }
@@ -339,7 +339,7 @@ PY
 > "Pipeline complete through `{last_stage}`. Methods run: `{methods_run}`.
 > Run summary written to `results/{run_id}/run_summary.json`.
 > To interpret results (including a cross-method comparison): invoke
-> `interpret/edna-nanopore-interpret`."
+> `interpret/ednanopore-interpret`."
 
 ## Troubleshooting — Signature library
 

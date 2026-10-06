@@ -11,7 +11,7 @@ Usage:
 ref2taxid.tsv: accession<TAB>taxid (e.g. EPI2ME's ref2taxid.targloci.tsv).
 rankedlineage.dmp: from NCBI's new_taxdump (pipe-delimited, trailing '\t|').
 
-Diagnostic note (see nf-edna-nanopore's BUG_FIX_REPORT.md Bug 30): a prior,
+Diagnostic note (see ednanopore's BUG_FIX_REPORT.md Bug 30): a prior,
 architecturally different tax_lookup builder for this pipeline's RefSeq-16S
 dataset silently lost phylum..family lineage for ~50-70% of reads, because
 it walked names.dmp/nodes.dmp parent pointers by hand and those two files

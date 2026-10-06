@@ -1,6 +1,6 @@
 # Catalog Section: NCBI RefSeq Targeted Loci 16S → MMI + tax_lookup TSV
 
-> **For:** `nf-edna-nanopore` (16S Nanopore eDNA, `bin/minimap2_lca.py`).
+> **For:** `ednanopore` (16S Nanopore eDNA, `bin/minimap2_lca.py`).
 > **Default classifier.** `modules/classify_consensus.nf` and `modules/classify_reads.nf` both invoke `bin/minimap2_lca.py --ref_mmi <mmi> --tax_lookup <tsv>`. The `tax_lookup` TSV is `accession<TAB>full_lineage` where `full_lineage` is `;`-separated in `RANK_COLUMNS = superkingdom,phylum,class,order,family,genus,species` order (see `bin/minimap2_lca.py:51`).
 > **Mirrors the approach of** Oxford Nanopore's [`wf-16s`](https://github.com/epi2me-labs/wf-16s) default `ncbi_16s_18s` DB ([docs/07_pipeline_overview.md](https://github.com/epi2me-labs/wf-16s/blob/master/docs/07_pipeline_overview.md) — references [NCBI RefSeq Targeted Loci](https://www.ncbi.nlm.nih.gov/refseq/targetedloci/)).
 

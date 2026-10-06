@@ -1,7 +1,7 @@
 ---
 name: reference-db-run
-description: Executes nf-edna-nanopore's reference-db download/build workflow after preflight has passed. For classifier_mode "minimap2" (default) — downloads NCBI RefSeq Targeted Loci 16S FASTA, builds a minimap2 MMI, and derives the tax_lookup TSV from the EPI2ME ref2taxid/taxdump bundle. For "kraken2" — downloads and extracts a pre-built Kraken2 16S database. For "idtaxa" (opt-in, Variant A only) — fetches the SILVA DECIPHER pre-trained file via biodb-fetch's `decipher` key (gdown runs inside biodb-fetch's env — no ad-hoc venv). All downloads go through the biodb-fetch dependency skill (scripts/marker_refs.py, manifest.tsv contract). Writes run_summary.json for downstream consumers.
-version: 0.3.0
+description: Executes ednanopore's reference-db download/build workflow after preflight has passed. For classifier_mode "minimap2" (default) — downloads NCBI RefSeq Targeted Loci 16S FASTA, builds a minimap2 MMI, and derives the tax_lookup TSV from the EPI2ME ref2taxid/taxdump bundle. For "kraken2" — downloads and extracts a pre-built Kraken2 16S database. For "idtaxa" (opt-in, Variant A only) — fetches the SILVA DECIPHER pre-trained file via biodb-fetch's `decipher` key (gdown runs inside biodb-fetch's env — no ad-hoc venv). All downloads go through the biodb-fetch dependency skill (scripts/marker_refs.py, manifest.tsv contract). Writes run_summary.json for downstream consumers.
+version: 0.4.0
 updated: "2026-10-06"
 triggers:
   - "run reference-db nanopore"
@@ -15,7 +15,7 @@ requires:
   - "python3 (for the tax_lookup TSV join step)"
 ---
 
-# Sub-Skill: reference-db-run (nf-edna-nanopore)
+# Sub-Skill: reference-db-run (ednanopore)
 
 ## Audience
 
@@ -26,7 +26,7 @@ requires:
 
 Use this sub-skill **after** `preflight/reference-db-preflight` returns a `GO` or `GO-WITH-WARNINGS` verdict.
 
-**Do NOT use this sub-skill** for: preflight validation (use `reference-db-preflight`); production classification (use `nf-edna-nanopore`'s `run/edna-nanopore-run`).
+**Do NOT use this sub-skill** for: preflight validation (use `reference-db-preflight`); production classification (use `ednanopore`'s `run/ednanopore-run`).
 
 ## 0. Inputs / Outputs
 

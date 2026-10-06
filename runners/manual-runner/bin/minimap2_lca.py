@@ -33,7 +33,7 @@
 #
 # Design intent: deliberately simple and auditable. We are NOT trying to
 # recreate MEGAN6's full LCA algorithm (which uses score-binning and
-# covers many edge cases). We are trying to give nf-edna-nanopore the
+# covers many edge cases). We are trying to give ednanopore the
 # same downstream contract (taxonomy_table + confidence TSV) so the rest
 # of nf-edna's stack (agglomerate_data.R, filter_idtaxa_by_confidence.jl,
 # diversity, association) keeps working without modification.

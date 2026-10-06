@@ -1,19 +1,19 @@
 ---
-name: edna-nanopore-intake
-description: "Validate Nanopore (ONT/MinION/PromethION) 16S rRNA eDNA metabarcoding run inputs and write the initial pipeline_state.json with a GO / GO-WITH-WARNINGS / NO-GO verdict. No variant choice — resolves run-time primer/length inputs plus reference-asset paths for all three classification methods (readbased+minimap2/RefSeq, readbased+IdTaxa/SILVA, consensus+medaka+IdTaxa/SILVA), which run by default unless the scientist explicitly opts one out. Computes 7 evidence items. Refuses to write a GO verdict if any required tool or input is missing. The downstream run/edna-nanopore-run sub-skill refuses to execute without verdict ≥ GO-WITH-WARNINGS. Has 7 explicit ask-user stop points (SP1-SP7). Triggers: 'new Nanopore 16S run', 'ONT 16S intake', 'MinION eDNA intake', 'start nf-edna-nanopore', 'long-read 16S eDNA pipeline', '16S Nanopore intake', 'eDNA Nanopore parameters'."
-version: 0.3.0
+name: ednanopore-intake
+description: "Validate Nanopore (ONT/MinION/PromethION) 16S rRNA eDNA metabarcoding run inputs and write the initial pipeline_state.json with a GO / GO-WITH-WARNINGS / NO-GO verdict. No variant choice — resolves run-time primer/length inputs plus reference-asset paths for all three classification methods (readbased+minimap2/RefSeq, readbased+IdTaxa/SILVA, consensus+medaka+IdTaxa/SILVA), which run by default unless the scientist explicitly opts one out. Computes 7 evidence items. Refuses to write a GO verdict if any required tool or input is missing. The downstream run/ednanopore-run sub-skill refuses to execute without verdict ≥ GO-WITH-WARNINGS. Has 7 explicit ask-user stop points (SP1-SP7). Triggers: 'new Nanopore 16S run', 'ONT 16S intake', 'MinION eDNA intake', 'start ednanopore', 'long-read 16S eDNA pipeline', '16S Nanopore intake', 'eDNA Nanopore parameters'."
+version: 0.4.0
 updated: "2026-10-06"
 triggers:
   - "new Nanopore 16S run"
   - "ONT 16S intake"
   - "MinION eDNA intake"
-  - "start nf-edna-nanopore"
+  - "start ednanopore"
   - "long-read 16S eDNA pipeline"
   - "16S Nanopore intake"
   - "eDNA Nanopore parameters"
 ---
 
-# edna-nanopore-intake
+# ednanopore-intake
 
 > **v0.2.0.** Nextflow removed; no tool/version check for it, no
 > `-params-file` framing. The bigger change: **the `pipeline_variant`
@@ -22,14 +22,14 @@ triggers:
 > scientist would live with before any data had been looked at. v0.2.0
 > defaults to resolving inputs for **all three classification methods**
 > (readbased+minimap2, readbased+IdTaxa, consensus+IdTaxa — see
-> `run/edna-nanopore-run/SKILL.md`'s "Why three methods, not one") and
+> `run/ednanopore-run/SKILL.md`'s "Why three methods, not one") and
 > only asks about dropping one if the scientist's own request implies it.
 
 ## Audience
 
 - **AI Coding Agents** — triggered by the phrases above. Run the evidence
   collection steps, then write `pipeline_state.json` with `verdict` set.
-  `run/edna-nanopore-run` refuses to execute if `verdict < GO-WITH-WARNINGS`.
+  `run/ednanopore-run` refuses to execute if `verdict < GO-WITH-WARNINGS`.
 - **Human Nanopore eDNA scientists** — read this as a workflow guide
   explaining why each input is asked for and what each evidence item
   guards against.
@@ -44,7 +44,7 @@ triggers:
 - Validate that all input files (manifest, metadata, reference assets,
   FASTQ paths) exist and have the expected schema **before** committing
   compute.
-- Get a machine-readable `pipeline_state.json` that `run/edna-nanopore-run`
+- Get a machine-readable `pipeline_state.json` that `run/ednanopore-run`
   reads without re-deriving choices.
 
 ## Do NOT use this skill
@@ -52,8 +52,8 @@ triggers:
 - If you have **Illumina** short reads — use `nf-edna`'s `16s.json` preset instead.
 - If your marker is **not 16S** — this skill is 16S-only in v0.2.0.
 - If you have **raw ONT reads that have not been basecalled + demultiplexed** — do that first.
-- If you want to **run the pipeline immediately** — this skill only writes intake state; invoke `run/edna-nanopore-run` after.
-- If you want to **interpret already-completed results** — invoke `interpret/edna-nanopore-interpret` instead.
+- If you want to **run the pipeline immediately** — this skill only writes intake state; invoke `run/ednanopore-run` after.
+- If you want to **interpret already-completed results** — invoke `interpret/ednanopore-interpret` instead.
 
 ## 0. Inputs / Outputs contract
 
@@ -74,7 +74,7 @@ triggers:
 
 | Path | Format | Owner | Notes |
 | --- | --- | --- | --- |
-| `results/{run_id}/pipeline_state.json` | JSON | this skill | Machine contract for `run/edna-nanopore-run`. `run_id`, `pipeline: "nf-edna-nanopore"`, `marker`, `methods` (which of the three to run), `verdict`, `completed_stages`, `last_stage`, `params_used`, `outputs`. |
+| `results/{run_id}/pipeline_state.json` | JSON | this skill | Machine contract for `run/ednanopore-run`. `run_id`, `pipeline: "ednanopore"`, `marker`, `methods` (which of the three to run), `verdict`, `completed_stages`, `last_stage`, `params_used`, `outputs`. |
 | `results/{run_id}/params.json` | JSON | this skill | Full parameter file, merged on top of `runners/manual-runner/defaults/16s-nanopore.json`. |
 | `results/{run_id}/manifest.tsv` | TSV, no header | this skill | `sample_id<TAB>fastq_filename` — the exact format every `bin/run_*.sh` script expects. Derived from the input manifest CSV/TSV (column names normalized). |
 | `results/{run_id}/intake_evidence.txt` | text | this skill | Raw evidence output, kept for debugging. |
@@ -83,9 +83,9 @@ triggers:
 
 | Verdict | Meaning | Downstream behaviour |
 | --- | --- | --- |
-| `GO` | All evidence items pass with no warnings | `run/edna-nanopore-run` proceeds without prompts |
-| `GO-WITH-WARNINGS` | All evidence items pass with ≤ 1 warning | `run/edna-nanopore-run` proceeds after one confirmation prompt |
-| `NO-GO` | Any evidence item fails | `run/edna-nanopore-run` refuses to execute |
+| `GO` | All evidence items pass with no warnings | `run/ednanopore-run` proceeds without prompts |
+| `GO-WITH-WARNINGS` | All evidence items pass with ≤ 1 warning | `run/ednanopore-run` proceeds after one confirmation prompt |
+| `NO-GO` | Any evidence item fails | `run/ednanopore-run` refuses to execute |
 
 ## 0.5 Ask-User Stop Points
 
@@ -127,7 +127,7 @@ triggers:
 
 | Trigger | Action |
 | --- | --- |
-| Scientist's request implies running fewer than all three methods (e.g. "quick screening", "just consensus", "no clustering") | Ask once, naming the specific blind spot being given up (reproduce the relevant row from `run/edna-nanopore-run/SKILL.md`'s method table): "Running only `<method(s)>` means losing `<other method>`'s coverage of `<specific blind spot>`. (A) proceed with just `<method(s)>` anyway, (B) run all three (recommended), (C) abort and reconsider" |
+| Scientist's request implies running fewer than all three methods (e.g. "quick screening", "just consensus", "no clustering") | Ask once, naming the specific blind spot being given up (reproduce the relevant row from `run/ednanopore-run/SKILL.md`'s method table): "Running only `<method(s)>` means losing `<other method>`'s coverage of `<specific blind spot>`. (A) proceed with just `<method(s)>` anyway, (B) run all three (recommended), (C) abort and reconsider" |
 
 **Auto-pick when**: nothing in the request implies skipping a method — default is all three.
 
@@ -230,7 +230,7 @@ Ask each only if not already provided, one at a time:
 Only if the scientist wants to customize beyond the validated defaults in
 `runners/manual-runner/defaults/16s-nanopore.json`:
 - `readbased_minimap2`: `min_percent_identity` (default 0.85), `min_ref_coverage` (default 0.8)
-- `readbased_idtaxa`: `idtaxa_threshold` (default 60 — note: this is a no-op below `DECIPHER::IdTaxa()`'s own internal default of 60, see `run/edna-nanopore-run/SKILL.md`'s troubleshooting table), `subsample_n` (default 10000)
+- `readbased_idtaxa`: `idtaxa_threshold` (default 60 — note: this is a no-op below `DECIPHER::IdTaxa()`'s own internal default of 60, see `run/ednanopore-run/SKILL.md`'s troubleshooting table), `subsample_n` (default 10000)
 - `consensus_idtaxa`: `cluster_min_identity` (default 0.95 — not 0.85, that's the unrelated `readbased_minimap2` value), `cluster_min_coverage_fraction` (default 0.8), `yacrd_min_coverage` (default 0.4), `idtaxa_threshold` (default 60)
 - DAA level (default `Genus`), top-N taxa to plot (default 20)
 
@@ -266,7 +266,7 @@ else                              → verdict = "GO"
 
 ```
 Run ID:             {run_id}
-Pipeline:           nf-edna-nanopore
+Pipeline:           ednanopore
 Methods in scope:   {readbased_minimap2, readbased_idtaxa, consensus_idtaxa}  (or a narrowed subset, per SP5)
 Marker:             {marker}
 Manifest:           {input_manifest}  ({N} samples, SE)
@@ -300,7 +300,7 @@ Ask: "Does this look correct? Type 'yes' to proceed, correct any parameter, or a
 ```json
 {
   "run_id": "{run_id}",
-  "pipeline": "nf-edna-nanopore",
+  "pipeline": "ednanopore",
   "marker": "16S",
   "methods": ["readbased_minimap2", "readbased_idtaxa", "consensus_idtaxa"],
   "verdict": "GO | GO-WITH-WARNINGS | NO-GO",
@@ -334,7 +334,7 @@ Ask: "Does this look correct? Type 'yes' to proceed, correct any parameter, or a
 > "Intake complete. Run ID: `{run_id}`. Methods in scope: `{methods}`.
 > Verdict: `{GO / GO-WITH-WARNINGS / NO-GO}`.
 >
-> To execute the pipeline: `run/edna-nanopore-run`"
+> To execute the pipeline: `run/ednanopore-run`"
 
 ## Troubleshooting — Signature library
 

@@ -1,6 +1,27 @@
 # Changelog
 
+## v0.4.0 — Renamed to ednanopore (Nextflow-free name)
+
+The skill no longer uses Nextflow (removed in v0.2.0), so the `nf-` prefix
+was misleading — within this skill tree `nf-` denotes Nextflow pipelines
+(e.g. `nf-skill`, the `nf-edna` Illumina sibling). All names fused:
+
+| Old | New |
+| --- | --- |
+| `nf-edna-nanopore` (skill + repo) | **`ednanopore`** (github.com/cheahhl814/ednanopore) |
+| `preflight/edna-nanopore-intake/` | `preflight/ednanopore-intake/` |
+| `run/edna-nanopore-run/` | `run/ednanopore-run/` |
+| `interpret/edna-nanopore-interpret/` | `interpret/ednanopore-interpret/` |
+
+GitHub redirects the old repo URL automatically; this checkout re-pointed
+`origin` explicitly. The sibling `nf-edna` (Nextflow, Illumina, 4-marker)
+and `reference-db` (`ednanopore/reference-db`) keep their names — `ednanopore`
+now slots into the `edna-*` family (`edna-visualize`, `edna-gbif-publish`)
+and leaves room to grow beyond 16S later via presets, not new skills.
+No pipeline-behavior change of any kind — this is a naming release only.
+
 ## v0.3.0 — Rebuilt on bioinfo-skill-creator v1.4.0 standard; biodb-fetch wired in
+
 
 **Structural rebuild, no pipeline-behavior change.** v0.2.0's agent-manual,
 three-methods-by-default design is preserved; this release brings the skill
@@ -94,7 +115,7 @@ ways by default:
 | `readbased_idtaxa` | No | SILVA (DECIPHER pre-trained) | No — the pre-trained model has no species rank in its training hierarchy at all |
 | `consensus_idtaxa` | Yes (cluster + medaka polish) | SILVA | No, same ceiling |
 
-Each has a different, known blind spot (see `run/edna-nanopore-run/SKILL.md`'s
+Each has a different, known blind spot (see `run/ednanopore-run/SKILL.md`'s
 "Why three methods, not one"). The `interpret` sub-skill's report now has
 a mandatory "Methods Run & Cross-Method Comparison" section instead of a
 "Pipeline Variant & Limitations" banner, and surfaces any >2x

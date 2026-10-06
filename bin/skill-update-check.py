@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""nf-edna-nanopore skill update check (v0.3.0).
+"""ednanopore skill update check (v0.3.0).
 
 Compares the deployed skill's git SHA + version to the upstream repo
-(github.com/cheahhl814/nf-edna-nanopore). No network calls beyond `git fetch`.
+(github.com/cheahhl814/ednanopore). No network calls beyond `git fetch`.
 
 Verdicts:
   UP-TO-DATE       local HEAD matches origin/HEAD (or origin/<default-branch>)

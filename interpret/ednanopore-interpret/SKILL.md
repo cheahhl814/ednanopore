@@ -1,7 +1,7 @@
 ---
-name: edna-nanopore-interpret
-description: "Turn nf-edna-nanopore pipeline outputs (readbased_minimap2, readbased_idtaxa, consensus_idtaxa — up to three methods, run by default) into a structured Markdown report with a mandatory cross-method comparison, a plain-language narrative summary, and an interactive Q&A session. The report always surfaces large (>2x) disagreements between methods as findings to flag, not noise to average away — this is the core value of running three methods instead of one. Diversity/DAA/correlation sections are consensus_idtaxa-only (it's the only method producing rep-seqs for phylogenetic placement). Refuses to interpret if upstream pipeline_state.json.completed_stages lacks at least one classification method. Has 4 explicit ask-user stop points (SP1-SP4). Triggers: 'interpret Nanopore 16S results', 'ONT 16S report', 'summarize Nanopore run', 'MinION 16S Results section', 'eDNA Nanopore diversity interpretation', 'eDNA Nanopore differential abundance', 'compare Nanopore classification methods'."
-version: 0.3.0
+name: ednanopore-interpret
+description: "Turn ednanopore pipeline outputs (readbased_minimap2, readbased_idtaxa, consensus_idtaxa — up to three methods, run by default) into a structured Markdown report with a mandatory cross-method comparison, a plain-language narrative summary, and an interactive Q&A session. The report always surfaces large (>2x) disagreements between methods as findings to flag, not noise to average away — this is the core value of running three methods instead of one. Diversity/DAA/correlation sections are consensus_idtaxa-only (it's the only method producing rep-seqs for phylogenetic placement). Refuses to interpret if upstream pipeline_state.json.completed_stages lacks at least one classification method. Has 4 explicit ask-user stop points (SP1-SP4). Triggers: 'interpret Nanopore 16S results', 'ONT 16S report', 'summarize Nanopore run', 'MinION 16S Results section', 'eDNA Nanopore diversity interpretation', 'eDNA Nanopore differential abundance', 'compare Nanopore classification methods'."
+version: 0.4.0
 updated: "2026-10-06"
 triggers:
   - "interpret Nanopore 16S results"
@@ -13,7 +13,7 @@ triggers:
   - "compare Nanopore classification methods"
 ---
 
-# edna-nanopore-interpret
+# ednanopore-interpret
 
 > **v0.2.0.** v0.1.0 had a mandatory "Pipeline Variant & Limitations"
 > banner because the scientist had picked exactly one of two
@@ -53,7 +53,7 @@ triggers:
 
 - If `pipeline_state.json.completed_stages` contains **no** classification method (SP1 hard-stop).
 - If you only want to **look at raw output files** — use `Read`/`Bash` directly.
-- If you want to **re-run the pipeline** — invoke `run/edna-nanopore-run` instead.
+- If you want to **re-run the pipeline** — invoke `run/ednanopore-run` instead.
 - If the run is still **in progress** on a method you need — wait for it, or interpret the subset that's done (SP3).
 - If your data is **Illumina** short reads — use `nf-edna`'s `interpret/edna-interpret`.
 
@@ -63,8 +63,8 @@ triggers:
 
 | Path | Source | Required? | Notes |
 | --- | --- | --- | --- |
-| `results/{run_id}/pipeline_state.json` | `run/edna-nanopore-run` | yes | `completed_stages` must include ≥1 classification method (SP1). Used for `run_id`, `pipeline`, `marker`, `methods`, `params_used`, `outputs`. |
-| `results/{run_id}/run_summary.json` | `run/edna-nanopore-run` Step 8 | yes | Metadata-only summary (methods run, file-presence flags, stage list). Per-stage numeric detail is read directly from output files. |
+| `results/{run_id}/pipeline_state.json` | `run/ednanopore-run` | yes | `completed_stages` must include ≥1 classification method (SP1). Used for `run_id`, `pipeline`, `marker`, `methods`, `params_used`, `outputs`. |
+| `results/{run_id}/run_summary.json` | `run/ednanopore-run` Step 8 | yes | Metadata-only summary (methods run, file-presence flags, stage list). Per-stage numeric detail is read directly from output files. |
 | `results/{run_id}/{method}/...` | `bin/run_*.sh` scripts | conditional | Read on-demand: per-sample counts, taxonomy tables, decontam summaries. |
 
 ### Outputs (produced)
@@ -85,7 +85,7 @@ Before reading any output, read `pipeline_state.json.completed_stages`. If it co
 
 | Trigger | Action |
 | --- | --- |
-| `completed_stages` has no classification method | Hard-stop: "No classification method has completed for this run (`completed_stages` = `<list>`). Run `run/edna-nanopore-run` first, or I can describe the QC outputs so far — want that?" |
+| `completed_stages` has no classification method | Hard-stop: "No classification method has completed for this run (`completed_stages` = `<list>`). Run `run/ednanopore-run` first, or I can describe the QC outputs so far — want that?" |
 
 **Auto-pick when**: ≥1 method is in `completed_stages`.
 
@@ -140,7 +140,7 @@ Read `results/{run_id}/pipeline_state.json`. Enforce SP1. Extract `methods` (whi
 
 ### Step 2 — Load run summary
 
-Read `results/{run_id}/run_summary.json` if present (primary data source). If absent, generate it via the inline snippet from `run/edna-nanopore-run` Step 8.
+Read `results/{run_id}/run_summary.json` if present (primary data source). If absent, generate it via the inline snippet from `run/ednanopore-run` Step 8.
 
 ### Step 2b — Anomaly scan, including cross-method divergence (SP2 trigger)
 
@@ -156,14 +156,14 @@ Write `results/{run_id}/{run_id}-report.md`.
 
 #### Run Summary
 
-Pipeline (`nf-edna-nanopore`), marker (`16S`), run ID, methods run, parameters used (primers, length range, kingdoms, `medaka_model` if `consensus_idtaxa` ran), sample count, completed stages.
+Pipeline (`ednanopore`), marker (`16S`), run ID, methods run, parameters used (primers, length range, kingdoms, `medaka_model` if `consensus_idtaxa` ran), sample count, completed stages.
 
 #### Methods Run & Cross-Method Comparison (mandatory banner — always first after Run Summary)
 
 ```markdown
 ## Methods Run & Cross-Method Comparison
 
-This run used **`{methods}`** of nf-edna-nanopore's three classification methods.
+This run used **`{methods}`** of ednanopore's three classification methods.
 
 | Method | Error-corrects reads? | Reference | Species-level? |
 | --- | --- | --- | --- |
@@ -183,7 +183,7 @@ divergence can't be explained with the methods available, say that explicitly
 rather than guessing.}
 
 [If only 1 method ran:] This report reflects only `{method}` — the other
-two methods' blind spots (see run/edna-nanopore-run/SKILL.md's method table)
+two methods' blind spots (see run/ednanopore-run/SKILL.md's method table)
 are not cross-checked in this report. Consider re-running with all three.
 ```
 
@@ -195,7 +195,7 @@ Per-sample trimmed read counts (`qc/{sample}/{sample}.trimmed.fastq.gz`), blank 
 
 #### Taxonomy Overview
 
-For each method in `methods`, report: row/ASV count, classification rate per rank, top taxa by total reads at the finest available rank. Then a **cross-method summary**: top 5 taxa that are abundant in every method vs. taxa that appear substantially in only one (candidates for the blind-spot cases documented in `run/edna-nanopore-run/SKILL.md`).
+For each method in `methods`, report: row/ASV count, classification rate per rank, top taxa by total reads at the finest available rank. Then a **cross-method summary**: top 5 taxa that are abundant in every method vs. taxa that appear substantially in only one (candidates for the blind-spot cases documented in `run/ednanopore-run/SKILL.md`).
 
 Note: `readbased_idtaxa` and `consensus_idtaxa` will show 0% species-level resolution — this is expected (no species rank in the SILVA training set), not a failure. Don't flag it as an anomaly.
 
@@ -221,8 +221,8 @@ Ground every answer in actual files. If a question needs `consensus_idtaxa`-only
 
 | Signature in stderr / log | Likely cause | Suggested fix |
 | --- | --- | --- |
-| `run_summary.json missing` | `run/edna-nanopore-run` Step 8 skipped/failed | Re-run that step's inline snippet |
-| `pipeline_state.json.methods missing or empty` | State predates v0.2.0, or intake didn't resolve scope | Re-run `preflight/edna-nanopore-intake` |
+| `run_summary.json missing` | `run/ednanopore-run` Step 8 skipped/failed | Re-run that step's inline snippet |
+| `pipeline_state.json.methods missing or empty` | State predates v0.2.0, or intake didn't resolve scope | Re-run `preflight/ednanopore-intake` |
 | **`Phylum X differs >2x between methods`** | **Not automatically a bug** — could be a genuine reference-coverage or clustering effect (see the Acidobacteriota case study) | Report it; try to isolate using whichever method pair differs only in reference (readbased_minimap2 vs readbased_idtaxa) vs. only in clustering (readbased_idtaxa vs consensus_idtaxa) |
 | `species-level resolution is 0% for readbased_idtaxa / consensus_idtaxa` | Expected — the SILVA IdTaxa model has no species rank | Not an anomaly; use `readbased_minimap2` for species-level claims |
 | `top_taxa table empty at finest rank` | All features filtered at that agglomeration rank | Fall back to the next coarser rank; mention the fallback in Caveats |

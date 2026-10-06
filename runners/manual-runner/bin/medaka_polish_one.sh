@@ -103,7 +103,7 @@ for cid, n in sorted(sizes.items()):
 biom = {'id': None, 'format': 'Biological Observation Matrix 1.0.0',
         'format_url': 'http://biom-format.org',
         'type': 'Process',
-        'generated_by': 'nf-edna-nanopore cluster_consensus (manual)',
+        'generated_by': 'ednanopore cluster_consensus (manual)',
         'date': '2026-01-01',
         'rows': rows, 'columns': [{'id': '$SAMPLE', 'metadata': None}],
         'matrix_type': 'sparse', 'matrix_element_type': 'int',

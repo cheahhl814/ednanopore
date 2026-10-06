@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""nf-edna-nanopore test fixtures (v0.3.0).
+"""ednanopore test fixtures (v0.4.0).
 
 Writes tiny deterministic input fixtures + MANIFEST.tsv into <outdir>.
 Consumed by battle-test check #12 (data fixtures + execution canary).

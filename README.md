@@ -8,7 +8,7 @@
 
 End-to-end agent orchestration of Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding. Runs three classification methods by default (readbased+minimap2/RefSeq, readbased+IdTaxa/SILVA, consensus+medaka-polish+IdTaxa/SILVA); no single method is sufficient for ONT data. Reference-database retrieval (RefSeq 16S, SILVA, tax lookups, IdTaxa training seed) is delegated to the biodb-fetch dependency skill.
 
-**Repository**: https://github.com/cheahhl814/nf-edna-nanopore
+**Repository**: https://github.com/cheahhl814/ednanopore
 
 > [!NOTE]
 > Current version: **v0.3.0** (updated 2026-10-06).
@@ -31,8 +31,8 @@ This is an **agent skill**, not a user-facing library. The recommended install p
 **Option A — give your agent this prompt (recommended):**
 
 ```text
-Install the nf-edna-nanopore skill from
-https://github.com/cheahhl814/nf-edna-nanopore —
+Install the ednanopore skill from
+https://github.com/cheahhl814/ednanopore —
 clone it into your agent's skills directory (the path your agent watches
 for skills) and run `pixi install` from that directory. Then read the
 skill's SKILL.md to understand its phases and the Input/Output contract
@@ -42,8 +42,8 @@ for each. Confirm when the environment is ready.
 **Option B — manual install:**
 
 ```bash
-git clone https://github.com/cheahhl814/nf-edna-nanopore.git
-cd nf-edna-nanopore
+git clone https://github.com/cheahhl814/ednanopore.git
+cd ednanopore
 pixi install
 ```
 
@@ -92,9 +92,9 @@ The analysis follows a phased evidence chain. Each phase consumes the artifacts 
 
 | # | Phase | Goal | Sub-skill | Artifact produced |
 |:--|:------|:-----|:----------|:------------------|
-| **1** | `preflight` | Validate Nanopore 16S run inputs (primer pair, length windows, reference-asset paths, sample manifest) and resolve parameters for all three classification methods | `preflight/edna-nanopore-intake/` | `results/{run_id}/pipeline_state.json` |
-| **2** | `run` | Execute the QC stage, then the three classification method scripts (minimap2/RefSeq, IdTaxa/SILVA, consensus+medaka+IdTaxa/SILVA), confirming each with the scientist | `run/edna-nanopore-run/` | `results/{run_id}/{method}/...` + updated `pipeline_state.json` + `run_summary.json` |
-| **3** | `interpret` | Turn the method outputs into `report.md` + `narrative.md`, always including the mandatory cross-method comparison (large disagreements are findings, not noise) | `interpret/edna-nanopore-interpret/` | `results/{run_id}/<run_id>-report.md` |
+| **1** | `preflight` | Validate Nanopore 16S run inputs (primer pair, length windows, reference-asset paths, sample manifest) and resolve parameters for all three classification methods | `preflight/ednanopore-intake/` | `results/{run_id}/pipeline_state.json` |
+| **2** | `run` | Execute the QC stage, then the three classification method scripts (minimap2/RefSeq, IdTaxa/SILVA, consensus+medaka+IdTaxa/SILVA), confirming each with the scientist | `run/ednanopore-run/` | `results/{run_id}/{method}/...` + updated `pipeline_state.json` + `run_summary.json` |
+| **3** | `interpret` | Turn the method outputs into `report.md` + `narrative.md`, always including the mandatory cross-method comparison (large disagreements are findings, not noise) | `interpret/ednanopore-interpret/` | `results/{run_id}/<run_id>-report.md` |
 | **4** | `reference-db` | Curate + locally build the classifier references (RefSeq MMI + tax TSV, Kraken2 16S DB, SILVA IdTaxa model) — downloads delegated to the `biodb-fetch` dependency skill | `reference-db/` | `$ASSETS_DIR/16s_{minimap2,kraken2,idtaxa}/...` + `run_summary.json` |
 
 > [!TIP]
@@ -143,7 +143,7 @@ pixi run update-check
 ## 📁 Repository layout
 
 ```text
-nf-edna-nanopore/
+ednanopore/
 ├── SKILL.md                 # Master orchestrator (router — start here)
 ├── README.md                # This file
 ├── pixi.toml                # Pinned tool environment (pixi install)
