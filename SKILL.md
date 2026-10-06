@@ -1,8 +1,8 @@
 ---
 name: nf-edna-nanopore
-description: End-to-end agent orchestration of the nf-edna-nanopore Nextflow DSL2 pipeline for Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding (partial ~350-600bp or full-length ~1500bp amplicons). Ships two selectable pipeline variants — `consensus` (cluster + medaka-polish reads into ASV-like representative sequences, then classify, reusing nf-edna's decontam/diversity/association stages) and `read_based` (classify every read directly, mirroring ONT's own wf-16s, no clustering). Use when the user has ONT/MinION/PromethION 16S amplicon reads — nf-edna's Illumina-oriented 16S preset (NGmerge PE-merge + VSEARCH UNOISE3 + IdTaxa) is not appropriate for single-read, higher-error ONT data. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (Variant A only, downstream).
-version: 0.1.0
-updated: "2026-08-19"
+description: End-to-end agent orchestration of the nf-edna-nanopore manual (agent-driven, no Nextflow) pipeline for Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding (partial ~350-600bp or full-length ~1500bp amplicons). Runs three complementary classification methods by default — readbased+minimap2/RefSeq (species-level, every read counted), readbased+IdTaxa/SILVA (broader reference, genus-level ceiling), and consensus+medaka-polish+IdTaxa/SILVA (error-corrected, genus-level) — because no single method is sufficient for this data type; see run/edna-nanopore-run/SKILL.md's case study. Use when the user has ONT/MinION/PromethION 16S amplicon reads — nf-edna's Illumina-oriented 16S preset (NGmerge PE-merge + VSEARCH UNOISE3 + IdTaxa) is not appropriate for single-read, higher-error ONT data. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (consensus-method outputs only, downstream).
+version: 0.2.0
+updated: "2026-10-06"
 triggers:
   - "Nanopore 16S metabarcoding"
   - "ONT 16S amplicon"
@@ -11,25 +11,37 @@ triggers:
   - "full-length 16S nanopore"
   - "nf-edna-nanopore"
 requires:
-  - "Nextflow ≥ 23.10.0 (DSL2-compatible release)"
-  - "Pixi (curl -fsSL https://pixi.sh/install.sh | bash) — manages per-stage tool envs under env/"
+  - "Pixi (curl -fsSL https://pixi.sh/install.sh | bash) — manages per-stage tool envs under runners/manual-runner/env/"
   - "git"
 ---
 
 # Meta-Skill: nf-edna-nanopore
 
-> **v0.1.0.** Initial version. Two Nextflow entry points under one skill:
-> `main-consensus.nf` (Variant A) and `main-readbased.nf` (Variant B).
-> Both share a Chopper/cutadapt/NanoPlot QC module. Variant A reuses
-> nf-edna's `agglomerate_data.R`, `decontam.jl`, `filter_table.jl`,
-> `diversity.nf`, `association.nf` unmodified — see the design spec at
-> `docs/superpowers/specs/2026-08-19-nf-edna-nanopore-design.md` in this
-> repo for the full rationale and tool-selection research.
-> 
+> **v0.2.0.** Nextflow removed entirely — this skill is now **manual
+> (agent-driven)**: an agent invokes `runners/manual-runner/bin/run_*.sh`
+> scripts directly via the Bash tool, one stage at a time, confirming each
+> command with the scientist before running it. This mirrors how every
+> validated run of this pipeline actually ended up being executed in
+> practice (see `CHANGELOG.md`'s "Bugs 28-30" framing note: 27 bugs
+> deep into the Nextflow orchestrator, retries moved to direct shell
+> invocation of the same underlying tool scripts and never looked back).
+>
+> The other major change: v0.1.0 made the scientist choose one of two
+> mutually-exclusive "variants" (`consensus` vs. `read_based`) up front.
+> **v0.2.0 runs three classification methods by default, not one** — see
+> `run/edna-nanopore-run/SKILL.md`'s "Why three methods, not one" section.
+> A real cross-method comparison on this project's dataset found a 3.6%
+> / 9.4% / 19.3% spread for one phylum's abundance across the three
+> methods, on identical samples — a gap invisible to anyone running only
+> one method, and only decomposable (reference-coverage effect vs.
+> clustering-amplification effect) by running the one method that isolates
+> the two factors. Treat large method disagreements as findings, not noise.
+>
 > **This SKILL.md is a router.** It does not duplicate logic from the
-> sub-skills. Its job is to ask: *what stage is the user at, which
-> pipeline variant do they want, and which sub-skill should they invoke
-> next?*
+> sub-skills. Its job is to ask: *what stage is the user at, and which
+> sub-skill should they invoke next?* There is no variant-selection
+> question anymore — intake no longer asks "which variant," because the
+> default is "all three."
 
 ## Audience
 
@@ -38,16 +50,16 @@ requires:
    sub-skill's decision points, and write `pipeline_state.json`,
    `run_summary.json`, and `<run_id>-report.md`.
 2. **Human Users (eDNA scientists)** — read this document as a workflow
-   guide explaining *why* each phase exists and *which variant fits your
-   question*.
+   guide explaining *why* each phase exists and *why three methods run by
+   default instead of one*.
 
 ## When to Use This Skill
 
 - You have **Nanopore-sequenced** (ONT/MinION/PromethION) 16S rRNA
   amplicon reads — partial-region (~350-600bp) or near/full-length
-  (~1500bp) — and want ASVs/taxonomy/diversity out of them.
-- You want to **compare** the two supported analysis strategies
-  (consensus-clustering vs. per-read classification) on the same data.
+  (~1500bp) — and want taxonomy/abundance out of them, cross-validated
+  across methods rather than trusting a single classifier+reference
+  combination.
 
 **Do NOT use this skill** if:
 
@@ -58,135 +70,127 @@ requires:
   sense (basecalled but un-demultiplexed, etc.) — demultiplex first;
   this skill's QC stage handles primer trimming + quality/length
   filtering, not basecalling or demultiplexing.
-- Your marker is not 16S — this skill is 16S-only in v0.1.0.
+- Your marker is not 16S — this skill is 16S-only in v0.2.0.
 
-## 0. Orchestrator — detect stage and variant, route to the right sub-skill
+## 0. Orchestrator — detect stage, route to the right sub-skill
 
 ### 0.1 Locate the run directory
 
-Same convention as `nf-edna`: `results/{run_id}/pipeline_state.json`.
-Override with `RUN_DIR` or `--run-dir`.
+`results/{run_id}/pipeline_state.json`. Override with `RUN_DIR` or
+`--run-dir`.
 
 ### 0.2 Detect the user's stage
 
-Same stage-detection ladder as `nf-edna` (see that skill's SKILL.md §0.2)
-— no `pipeline_state.json` → `intake`; `classify` in `completed_stages`
-→ `interpret`; otherwise → `run`.
+No `pipeline_state.json` → `intake`. `completed_stages` includes all
+three classification methods (or the subset the scientist explicitly
+chose to run, per intake's SP) → `interpret`. Otherwise → `run`.
 
-### 0.3 Pipeline-variant selection (new vs. nf-edna)
+### 0.3 Stage → sub-skill routing table
 
-Unlike `nf-edna`, this skill has a second axis: **which pipeline
-variant**. This is decided once, at intake, and stored in
-`pipeline_state.json.pipeline_variant`. It is NOT re-asked on later
-invocations — `run/edna-nanopore-run` reads it from the state file.
-
-| `pipeline_variant`    | Entry point         | When to recommend                                                                                                                                                                                                                                     |
-| --------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `consensus` (default) | `main-consensus.nf` | Multi-species community samples where you want per-feature (ASV-like) sequences for decontam, phylogenetic diversity, geocuration, GBIF publishing.                                                                                                   |
-| `read_based`          | `main-readbased.nf` | Quick screening, very high sample counts, or when clustering-parameter sensitivity is a concern. **Limitation:** no rep-seqs → no phylogenetic diversity, no decontam-by-sequence, no geocuration, no edna-visualize/edna-gbif-publish chaining (v1). |
-
-### 0.4 Stage → sub-skill routing table
-
-| Detected stage | Route to                                     | Output artifact                                                       |
-| -------------- | -------------------------------------------- | --------------------------------------------------------------------- |
-| `intake`       | `preflight/edna-nanopore-intake/SKILL.md`    | `results/{run_id}/pipeline_state.json` (includes `pipeline_variant`)  |
-| `run`          | `run/edna-nanopore-run/SKILL.md`             | `results/{run_id}/{stage}_output/...` + updated `pipeline_state.json` |
-| `interpret`    | `interpret/edna-nanopore-interpret/SKILL.md` | `results/{run_id}/<run_id>-report.md` + `narrative.md`                |
+| Detected stage | Route to | Output artifact |
+| --- | --- | --- |
+| `intake` | `preflight/edna-nanopore-intake/SKILL.md` | `results/{run_id}/pipeline_state.json` |
+| `run` | `run/edna-nanopore-run/SKILL.md` | `results/{run_id}/{method}/...` + updated `pipeline_state.json` |
+| `interpret` | `interpret/edna-nanopore-interpret/SKILL.md` | `results/{run_id}/<run_id>-report.md` + `narrative.md`, including a cross-method comparison section |
 
 ### Operating rule
 
 > **Auto-pick when the evidence is unambiguous; ask when the agent
-> genuinely cannot decide.** For the variant choice specifically: if the
-> user's request names a variant explicitly ("read-based", "no
-> clustering", "consensus", "ASV") or names a downstream need that only
-> one variant supports (decontam, geocuration, GBIF publishing → forces
-> `consensus`), auto-pick. Otherwise ask once at intake with the
-> Evidence + Recommend + Options format, defaulting the recommendation to
-> `consensus`.
+> genuinely cannot decide.** There is no variant choice to ask about
+> anymore — default to running all three methods. Only ask (at intake,
+> once) if the scientist's request already implies skipping one (e.g.
+> they explicitly ask for "just consensus" or "quick screening only") —
+> and even then, state the blind-spot cost of skipping before agreeing.
 
 ## Description
 
-Three phases, same shape as `nf-edna`:
+Three phases:
 
 1. **`preflight/edna-nanopore-intake`** — gather run parameters
-   (primer pair, min/max length, `pipeline_variant`, classifier mode,
-   metadata, run_id), validate inputs, write `pipeline_state.json`.
-2. **`run/edna-nanopore-run`** — read `pipeline_state.json`, construct
-   and execute the correct `nextflow run main-<variant>.nf -params-file
-   params/16s-nanopore.json -params-file ...` command, monitor progress,
-   update state after each stage.
+   (primer pair, min/max length, classifier-specific reference paths,
+   metadata, run_id, sample manifest), validate inputs, write
+   `pipeline_state.json`. No `pipeline_variant` field anymore — intake
+   resolves parameters for all three methods unless the scientist opts
+   out of one.
+2. **`run/edna-nanopore-run`** — read `pipeline_state.json`, run
+   `runners/manual-runner/bin/run_qc.sh` then the three
+   `run_{method}.sh` scripts (each shown to and confirmed by the
+   scientist before execution), monitor progress, update state after
+   each stage.
 3. **`interpret/edna-nanopore-interpret`** — read `run_summary.json`,
-   produce `<run_id>-report.md` + `narrative.md`, note in the report
-   which variant was used and its documented limitations.
+   produce `<run_id>-report.md` + `narrative.md`, including a
+   cross-method comparison table and explicit callouts for any large
+   (>2x) disagreements between methods.
 
 ## Prerequisites
 
-- **Nextflow ≥ 23.10.0**, **Pixi**, **git** — same as `nf-edna`.
-- **Reference assets** — a 16S reference minimap2 index (`params.ref_mmi`,
-  e.g. built from NCBI RefSeq Targeted Loci) + taxonomy lookup TSV
-  (`params.tax_lookup`) for the default `minimap2` classifier mode; a
-  Kraken2 DB for `classifier: "kraken2"`; a trained IdTaxa `.rds` for the
-  opt-in `classifier: "idtaxa"` mode — Variant A only. Run this repo's own
-  `reference-db/` sub-skill first if you don't have these yet — it covers
-  all three modes (chain to `nf-edna`'s `idtaxa-training` only if you want
-  a custom-trained, non-SILVA IdTaxa model).
-- **`medaka_model`** (Variant A) — set to match your flow cell chemistry
-  and basecaller mode (e.g. `r1041_e82_400bps_sup_v5.0.0`); there is no
-  universal default.
+- **Pixi**, **git**. No Nextflow, no Java — removed as dependencies in
+  v0.2.0.
+- **Reference assets** — a 16S reference minimap2 index
+  (`ref_mmi`) + taxonomy lookup TSV (`tax_lookup`) for
+  `readbased_minimap2`; a trained IdTaxa `.RData`/`.rds` for
+  `readbased_idtaxa` and `consensus_idtaxa` (both use the same SILVA
+  model by default). Run this repo's own `reference-db/` sub-skill first
+  if you don't have these yet.
+- **`medaka_model`** (consensus method only) — set to match your flow
+  cell chemistry and basecaller mode (e.g.
+  `r1041_e82_400bps_sup_v5.0.0`); there is no universal default.
 
-## Marker preset (`params/`)
+## Marker preset (`runners/manual-runner/defaults/`)
 
-| Preset              | Marker | Length range (run-time override)                                                                 | Kingdoms          | Geocurate                    |
-| ------------------- | ------ | ------------------------------------------------------------------------------------------------ | ----------------- | ---------------------------- |
-| `16s-nanopore.json` | 16S    | 350-1600 bp default; set `min_length`/`max_length` per run for partial vs. full-length amplicons | Bacteria, Archaea | off (Variant A only, opt-in) |
+| Preset | Marker | Length range (run-time override) | Kingdoms |
+| --- | --- | --- | --- |
+| `16s-nanopore.json` | 16S | `qc.min_length`/`qc.max_length`, 450-1600bp default | Bacteria, Archaea |
 
-Unlike `nf-edna`'s four hardcoded per-marker presets, this skill uses a
-**single flexible preset** — partial (~600bp) and full-length (~1500bp)
-16S are both "16S", just with different `min_length`/`max_length`
-supplied at intake, not different marker files.
+Partial (~600bp) and full-length (~1500bp) 16S are both "16S" — set
+`min_length`/`max_length` at intake per run, not via different marker
+files. The preset also carries validated defaults for each of the three
+methods (`readbased_minimap2`, `readbased_idtaxa`, `consensus` keys) —
+see `runners/manual-runner/defaults/16s-nanopore.json` and
+`CHANGELOG.md` for why each value was chosen (e.g.
+`cluster_min_identity: 0.95`, `qc.min_length_trimmed: 350` as a value
+distinct from the raw-read floor, `idtaxa_threshold: 60`).
 
 ## Output artifacts
 
 ```
 results/{run_id}/
-├── pipeline_state.json           ← includes pipeline_variant
+├── pipeline_state.json
 ├── run.log
-├── qc_output/                    ← Chopper + cutadapt + NanoPlot (shared)
-├── cluster_output/                ← Variant A only: minimap2 selfmap + yacrd + medaka consensus
-├── asv_table/                    ← Variant A only: ASV-like feature table + rep-seqs
-├── taxonomy/                     ← both variants: classification (minimap2-LCA / kraken2 / idtaxa[A only])
-├── diversity_output/              ← Variant A only (v1)
-├── association_output/            ← Variant A only (v1)
+├── qc/                        ← chopper + cutadapt (shared across all 3 methods)
+├── readbased_minimap2/        ← taxonomy/ + asv_table/ (per-read, RefSeq)
+├── readbased_idtaxa/          ← taxonomy/ + asv_table/ (per-read, SILVA)
+├── consensus_idtaxa/          ← cluster/ + asv_table/ + taxonomy/ (clustered+polished, SILVA)
 ├── run_summary.json
-├── <run_id>-report.md
+├── <run_id>-report.md         ← includes cross-method comparison
 └── narrative.md
 ```
 
 ## Composability with other AiX-BIO skills
 
-| Skill                                       | When to chain                                                                                                                                                                                                                                                |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `read-qc-trimming`                          | Not typically needed before this skill — ONT basecalled reads don't need Illumina-style adapter trimming; this skill's own QC module does primer trimming + quality/length filtering. Only chain it if your reads need additional platform-specific cleanup. |
-| `reference-db` (this repo: `reference-db/`) | Run **before** the first-ever nf-edna-nanopore run if you don't yet have `ref_mmi`+`tax_lookup` (default), `kraken2_db` (alt), or `idtaxa_model` (opt-in). Catalog + download/build workflow for all three classifier modes.                                 |
-| `nf-edna`                                   | Reference for the reused downstream `bin/`+`modules/` (diversity, association, decontam, agglomerate) and for `idtaxa-training` if the opt-in IdTaxa mode needs a custom-trained (non-SILVA) model instead of this skill's `reference-db`.                   |
-| `edna-visualize`                            | Variant A only.                                                                                                                                                                                                                                              |
-| `edna-gbif-publish`                         | Variant A only, after `interpret/edna-nanopore-interpret`.                                                                                                                                                                                                   |
+| Skill | When to chain |
+| --- | --- |
+| `read-qc-trimming` | Not typically needed before this skill — this skill's own QC module does primer trimming + quality/length filtering. |
+| `reference-db` (this repo) | Run **before** the first-ever nf-edna-nanopore run if you don't yet have `ref_mmi`+`tax_lookup` or the IdTaxa `.RData`. |
+| `nf-edna` | Reference for `idtaxa-training` if you want a custom-trained (non-SILVA) IdTaxa model instead of this skill's bundled one. |
+| `edna-visualize` / `edna-gbif-publish` | `consensus_idtaxa` output only (it's the only method with rep-seqs for phylogenetic placement / Darwin Core records). |
 
 ## What NOT to do
 
-- Do **not** skip `preflight/edna-nanopore-intake` — `pipeline_variant`
-  must be resolved before `run/edna-nanopore-run` can pick an entry
-  point.
-- Do **not** run Variant B and then expect decontam/diversity/
-  geocuration/GBIF-publish outputs — they are not produced in v1.
+- Do **not** skip `preflight/edna-nanopore-intake`.
+- Do **not** silently run only one classification method — defaulting to
+  one without the scientist explicitly agreeing to the blind-spot
+  trade-off (see `run/edna-nanopore-run/SKILL.md` SP5) reintroduces
+  exactly the risk this rewrite exists to close.
+- Do **not** average or silently reconcile a large disagreement between
+  methods in a report — surface it as a finding.
 - Do **not** delete `pipeline_state.json` mid-run.
-- Do **not** commit `assets/`, `results/`, `work/`, `.nextflow.log*`,
-  `*.fq.gz`.
+- Do **not** commit `assets/`, `results/`, `*.fq.gz`.
 
 ## Handoff
 
 - **Manuscript writing** → `literature-pipeline`.
-- **GBIF publishing** (Variant A only) → `edna-gbif-publish`.
-- **Comparing variants** → run both with the same `run_id` prefix and a
-  `_consensus`/`_readbased` suffix; `interpret/edna-nanopore-interpret`
-  can be invoked twice and the two `narrative.md`s compared manually.
+- **GBIF publishing** → `edna-gbif-publish` (from `consensus_idtaxa` output).
+- **Comparing methods** → this is now the default behavior of a single
+  run, not something requiring two separate runs — `interpret/edna-nanopore-interpret`
+  produces the cross-method comparison directly.

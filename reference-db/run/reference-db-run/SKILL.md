@@ -74,7 +74,7 @@ curl -L -o 16S_refseq_archaea.fna.gz \
 zcat 16S_refseq_bacteria.fna.gz 16S_refseq_archaea.fna.gz > "$ASSETS_DIR/16s_minimap2/16S_refseq.fna"
 
 # (b) build the minimap2 index
-pixi run --manifest-path runners/nextflow-runner/env/cluster/pixi.toml \
+pixi run --manifest-path runners/manual-runner/env/cluster/pixi.toml \
   minimap2 -d "$ASSETS_DIR/16s_minimap2/16S_refseq.mmi" -x map-ont \
   "$ASSETS_DIR/16s_minimap2/16S_refseq.fna"
 
@@ -141,7 +141,7 @@ python3 -m venv /tmp/gdown_env && /tmp/gdown_env/bin/pip install -q gdown
 >
 > `minimap2` mode:
 > ```bash
-> pixi run --manifest-path runners/nextflow-runner/env/cluster/pixi.toml \
+> pixi run --manifest-path runners/manual-runner/env/cluster/pixi.toml \
 >   minimap2 -a "$ASSETS_DIR/16s_minimap2/16S_refseq.mmi" /dev/null > /dev/null \
 >   && echo "MMI loads OK"
 > # tax_lookup: spot-check a random accession has a non-empty lineage
@@ -155,8 +155,8 @@ python3 -m venv /tmp/gdown_env && /tmp/gdown_env/bin/pip install -q gdown
 >
 > `idtaxa` mode — identical to nf-edna's check:
 > ```bash
-> pixi run --manifest-path runners/nextflow-runner/env/classification/pixi.toml \
->   Rscript runners/nextflow-runner/bin/idtaxa_rds.R \
+> pixi run --manifest-path runners/manual-runner/env/classification/pixi.toml \
+>   Rscript runners/manual-runner/bin/idtaxa_rds.R \
 >     --query_sequences /dev/null \
 >     --idtaxa_model "$ASSETS_DIR/16s_idtaxa/SILVA_SSU_r138.2.rdata" \
 >     --output_classification "$RUN_DIR/sanity_classification.tsv" \

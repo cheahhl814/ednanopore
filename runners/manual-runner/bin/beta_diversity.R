@@ -89,11 +89,18 @@ tse <- TreeSummarizedExperiment(
 message(paste("TreeSummarizedExperiment object created with dimensions:", dim(tse)[1], "features and", dim(tse)[2], "samples."))
 message(paste("Available metadata columns:", paste(names(colData(tse)), collapse=", ")))
 
-# Ensure grouping variable is factor
-if (!args$grouping_variable %in% names(colData(tse))) {
+# Ensure grouping variable is factor. An empty --grouping_variable means the
+# caller has no real grouping column to compare (e.g. metadata lacks one) —
+# synthesize a single-level factor so PCoA/heatmap plotting still runs;
+# PERMANOVA on a single-level factor is a no-op (already tryCatch'd below).
+if (args$grouping_variable == "") {
+    args$grouping_variable <- "__no_grouping__"
+    colData(tse)[[args$grouping_variable]] <- factor(rep("all_samples", ncol(tse)))
+} else if (!args$grouping_variable %in% names(colData(tse))) {
     stop(paste("Grouping variable '", args$grouping_variable, "' not found in metadata."))
+} else {
+    colData(tse)[[args$grouping_variable]] <- as.factor(colData(tse)[[args$grouping_variable]])
 }
-colData(tse)[[args$grouping_variable]] <- as.factor(colData(tse)[[args$grouping_variable]])
 
 
 # --- Remove zero-count samples before any transformation ---

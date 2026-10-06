@@ -1,0 +1,40 @@
+{
+  "marker": "16S",
+  "kingdoms": "Bacteria,Archaea",
+  "daa_level": "Genus",
+  "correlation_level": "Genus",
+  "target_ranks": "Phylum,Family,Genus",
+  "geocurate": false,
+
+  "qc": {
+    "min_length": 450,
+    "min_length_trimmed": 350,
+    "max_length": 1600,
+    "min_qual": 10,
+    "primer_revcomp": true
+  },
+
+  "readbased_minimap2": {
+    "min_percent_identity": 0.85,
+    "min_ref_coverage": 0.8,
+    "decontam_threshold": 0.1
+  },
+
+  "readbased_idtaxa": {
+    "idtaxa_threshold": 60,
+    "decontam_threshold": 0.1,
+    "subsample_n": 10000,
+    "subsample_seed": 42
+  },
+
+  "consensus": {
+    "cluster_min_identity": 0.95,
+    "cluster_min_coverage_fraction": 0.8,
+    "yacrd_min_coverage": 0.4,
+    "yacrd_min_length": 100,
+    "medaka_model": "r1041_e82_400bps_sup_v5.0.0",
+    "classifier": "idtaxa",
+    "idtaxa_threshold": 60,
+    "decontam_threshold": 0.1
+  }
+}

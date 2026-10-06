@@ -1,170 +1,304 @@
 # nf-edna-nanopore
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](#-installation)
-[![Type](https://img.shields.io/badge/type-agent%20skill-blueviolet)](#-installation)
-[![Built with](https://img.shields.io/badge/built%20with-bioinfo--skill--creator-orange)](https://github.com/cheahhl814/bioinfo-skill-creator)
+**End-to-end Nanopore 16S eDNA metabarcoding pipeline — agent-driven, no Nextflow**
 
-End-to-end agent orchestration of the nf-edna-nanopore Nextflow DSL2 pipeline for Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding (partial ~350-600bp or full-length ~1500bp amplicons). Ships two selectable pipeline variants — `consensus` (cluster + medaka-polish reads into ASV-like representative sequences, then classify, reusing nf-edna's decontam/diversity/association stages) and `read_based` (classify every read directly, mirroring ONT's own wf-16s, no clustering). Use when the user has ONT/MinION/PromethION 16S amplicon reads — nf-edna's Illumina-oriented 16S preset (NGmerge PE-merge + VSEARCH UNOISE3 + IdTaxa) is not appropriate for single-read, higher-error ONT data. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (Variant A only, downstream).
+> v0.2.0 · Runs three classification methods by default: **readbased_minimap2**, **readbased_idtaxa**, **consensus_idtaxa**. No variant to pick — see "Why three methods" below.
 
-**Repository**: https://github.com/cheahhl814/nf-edna-nanopore
+---
 
-> [!NOTE]
-> Current version: **v0.1.0** (updated 2026-08-19).
+## What it does
 
-## Contents
+`nf-edna-nanopore` processes Oxford Nanopore (ONT/MinION/PromethION) 16S rRNA amplicon reads through a complete eDNA metabarcoding workflow: quality control, classification (three independent ways), decontamination, and (for the one method that produces representative sequences) diversity analysis and association testing.
 
-- [Installation](#-installation)
-- [Usage](#-usage)
-- [Pipeline overview](#-pipeline-overview)
-- [Tools](#-tools)
-- [Update check](#-update-check)
-- [Repository layout](#-repository-layout)
-- [Hard guarantees](#-hard-guarantees)
-- [Nextflow runner](#-nextflow-runner)
-- [Provenance](#-provenance)
+It runs **three classification methods by default**, not a single selectable variant:
 
-## 🚀 Installation
+| Method | Error-corrects reads? | Reference | Species-level? | Script |
+|---|---|---|---|---|
+| **readbased_minimap2** | No (classifies raw trimmed reads) | RefSeq Targeted Loci (or similar) | Yes, where reference has species headers | `bin/run_readbased_minimap2.sh` |
+| **readbased_idtaxa** | No | SILVA (DECIPHER pre-trained) | No — the pre-trained model has no species rank at all | `bin/run_readbased_idtaxa.sh` |
+| **consensus_idtaxa** | Yes (cluster + medaka polish) | SILVA | No, same ceiling | `bin/run_consensus_idtaxa.sh` |
 
-This is an **agent skill**, not a user-facing library. The recommended install path is to let your AI agent import it.
+All three share the same QC stage (Chopper + cutadapt + NanoPlot).
 
-**Option A — give your agent this prompt (recommended):**
+### Why three methods, not one
 
-```text
-Install the nf-edna-nanopore skill from
-https://github.com/cheahhl814/nf-edna-nanopore —
-clone it into your agent's skills directory (the path your agent watches
-for skills) and run `pixi install` from that directory. Then read the
-skill's SKILL.md to understand its phases and the Input/Output contract
-for each. Confirm when the environment is ready.
+v0.1.0 made the scientist pick exactly one of two mutually-exclusive "variants" at intake. That decision now looks like a mistake: a real cross-method comparison on this project's dataset found one phylum's abundance estimate ranging **3.6% → 9.4% → 19.3%** across the three methods, on identical samples. Each method has a different, known blind spot (RefSeq under-represents uncultured/`Candidatus` lineages; the SILVA IdTaxa model caps at genus; clustering can itself amplify a reference-driven signal). Running only one would have reported one of those three numbers with no way to know it was method-sensitive at all. v0.2.0 runs all three by default and treats large disagreements as findings to investigate, not noise to average away.
+
+### When to use this skill
+
+- You have **Nanopore-sequenced** 16S rRNA amplicon reads (partial ~350-600 bp or full-length ~1500 bp).
+- You want taxonomy/abundance cross-validated across methods rather than trusting one classifier+reference combination.
+
+### When NOT to use this skill
+
+- Your reads are **Illumina** short reads → use `nf-edna`'s `16s.json` preset instead.
+- Your reads are **not yet basecalled or demultiplexed** → do that first.
+- Your marker is **not 16S** → not supported in v0.2.0.
+
+---
+
+## Pipeline architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                        nf-edna-nanopore                              │
+│                                                                     │
+│  ┌──────────┐                                                       │
+│  │ preflight │  Gather params, validate inputs, write               │
+│  │ (intake)  │  pipeline_state.json with GO/NO-GO verdict           │
+│  └─────┬─────┘                                                       │
+│        │                                                             │
+│  ┌─────▼─────────────────────────────────────────────────────────┐  │
+│  │                       run (agent-driven, no Nextflow)         │  │
+│  │                                                               │  │
+│  │   QC (shared) → run_qc.sh                                     │  │
+│  │        │                                                      │  │
+│  │        ├─→ run_readbased_minimap2.sh  (RefSeq, per-read)      │  │
+│  │        ├─→ run_readbased_idtaxa.sh    (SILVA, per-read)       │  │
+│  │        └─→ run_consensus_idtaxa.sh    (SILVA, clustered)      │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+│        │                                                             │
+│  ┌─────▼──────────┐                                                  │
+│  │   interpret     │  report.md (incl. cross-method comparison)      │
+│  │                 │  + narrative.md                                 │
+│  └─────────────────┘                                                  │
+│                                                                     │
+│  ┌─────────────────┐                                                 │
+│  │   reference-db  │  Catalog + download/build reference assets       │
+│  └─────────────────┘                                                 │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Option B — manual install:**
+Each of the three classification methods runs independently once QC is
+done — they can be launched in parallel background jobs, in any order.
+
+---
+
+## Quick start
+
+### Prerequisites
+
+- **Pixi** (`curl -fsSL https://pixi.sh/install.sh | bash`) — manages per-stage tool environments under `runners/manual-runner/env/`
+- **git**
+
+No Nextflow, no Java — removed as dependencies in v0.2.0.
+
+### 1. Prepare reference databases
+
+Run the `reference-db/` sub-skill first:
+
+| Method | Required assets | How to get them |
+|---|---|---|
+| `readbased_minimap2` | `ref_mmi` + `tax_lookup` TSV | `reference-db/` §1 (NCBI RefSeq Targeted Loci) |
+| `readbased_idtaxa` + `consensus_idtaxa` | `idtaxa_model` (`.RData`/`.rds`, shared by both) | `reference-db/` §3 (SILVA DECIPHER IdTaxa) |
+
+### 2. Run intake (preflight)
+
+Invoke `preflight/edna-nanopore-intake`. Provide:
+- Sample manifest (CSV: `sample-id,absolute-filepath` — single-end ONT only)
+- Metadata TSV (must include `sample-id` + `is_negative` columns)
+- Primer sequences (forward + reverse), amplicon length range
+- Reference asset paths for whichever methods are in scope (default: all three)
+- `medaka_model` (only needed if `consensus_idtaxa` is in scope — must match your flow cell chemistry)
+- Grouping variable + reference level (only needed for `consensus_idtaxa`'s diversity/DAA stages)
+
+Writes `results/{run_id}/{pipeline_state.json, params.json, manifest.tsv}`.
+
+### 3. Run the pipeline
+
+Invoke `run/edna-nanopore-run`, which shows and confirms each command before running it. Example (what it constructs):
 
 ```bash
-git clone https://github.com/cheahhl814/nf-edna-nanopore.git
-cd nf-edna-nanopore
-pixi install
+bash runners/manual-runner/bin/run_qc.sh \
+  results/{run_id}/manifest.tsv {input_data_dir} results/{run_id}/qc \
+  "{primers_fwd}" "{primers_rev}"
+
+bash runners/manual-runner/bin/run_readbased_minimap2.sh \
+  results/{run_id}/manifest.tsv results/{run_id}/qc results/{run_id}/readbased_minimap2 \
+  {ref_mmi} {tax_lookup} {metadata}
+
+bash runners/manual-runner/bin/run_readbased_idtaxa.sh \
+  results/{run_id}/manifest.tsv results/{run_id}/qc results/{run_id}/readbased_idtaxa \
+  {idtaxa_model} {metadata}
+
+bash runners/manual-runner/bin/run_consensus_idtaxa.sh \
+  results/{run_id}/manifest.tsv results/{run_id}/qc results/{run_id}/consensus_idtaxa \
+  {idtaxa_model} {metadata}
 ```
 
-> [!TIP]
-> `pixi install` resolves every pinned tool from `pixi.toml` (channels: conda-forge, bioconda) into an isolated `.pixi/` environment — no system-wide installs, no version conflicts with other skills.
+Each script's full argument list and defaults are documented in its own
+header comment. `run_readbased_idtaxa.sh` and `run_consensus_idtaxa.sh`
+are the slow ones — IdTaxa's classification call costs ~0.17-0.2
+sec/sequence on a 64-core machine; `run_readbased_idtaxa.sh` defaults to
+subsampling (10,000 reads/sample) for this reason.
 
-## 💡 Usage
+### 4. Interpret results
 
-The skill is designed to be driven by an AI agent: the agent reads the master `SKILL.md`, detects the current phase from the filesystem state of your run directory, and routes to the right sub-skill.
+The `interpret/edna-nanopore-interpret` sub-skill generates:
+- `<run_id>-report.md` — Run Summary, **Methods Run & Cross-Method Comparison** (mandatory, always first), QC, Taxonomy Overview, Diversity/DAA/Correlation (`consensus_idtaxa` only), Caveats
+- `narrative.md` — plain-language summary, names any major cross-method divergence up front
 
-### Natural-language prompts that trigger the skill
+---
 
-```text
-Nanopore 16S metabarcoding
-ONT 16S amplicon
-MinION 16S eDNA
-long-read 16S classification
-full-length 16S nanopore
+## Output structure
+
+```
+results/{run_id}/
+├── pipeline_state.json          # Run state, methods in scope, verdict, completed stages
+├── params.json                  # Merged run parameters
+├── manifest.tsv                 # sample_id<TAB>fastq_filename (no header)
+├── intake_evidence.txt          # Preflight evidence log
+├── qc/                          # Chopper + cutadapt (shared across all 3 methods)
+├── readbased_minimap2/          # taxonomy/ + asv_table/
+├── readbased_idtaxa/            # taxonomy/ + asv_table/
+├── consensus_idtaxa/            # cluster/ + asv_table/ + taxonomy/ (incl. agglomerated_data/)
+├── run_summary.json
+├── {run_id}-report.md
+└── narrative.md
 ```
 
-### Manual phase execution
+---
 
-If you prefer to drive the phases yourself (or want to re-run a single phase):
+## Skill structure
 
-```bash
-# Set your run directory (all phase artifacts land here)
-RUN_DIR=/path/to/run-dir
-
-pixi run preflight   # Phase 1 — validate inputs, write preflight.md + params.json
-pixi run run         # Phase 2 — execute the workflow (after preflight ≥ GO)
-pixi run qc          # Phase 3 — build the final report (after run completes)
-pixi run debug       # On failure — interpret stderr via the signature library
-pixi run battle-test # Verify the skill's structural integrity
 ```
-
-> [!IMPORTANT]
-> Each phase has an explicit **Inputs/Outputs contract** at the top of its sub-skill `SKILL.md`. If the upstream artifact is missing (e.g. you run `run` before `preflight` passed), the sub-skill refuses to proceed and tells you which phase to run first. Phases are gated on purpose — don't skip them.
-
-## 🔬 Pipeline overview
-
-The analysis follows a phased evidence chain. Each phase consumes the artifacts of the previous phase and gates progression with a Go/No-Go check.
-
-| # | Phase | Goal | Sub-skill | Artifact produced |
-|:--|:------|:-----|:----------|:------------------|
-| **1** | **Interpret** | **v0.1.0.** Initial version. Adds the canonical BettaMt structure (§0 Inputs/Outputs contract, §0.5 Ask-User Stop Points | `interpret/` | `$RUN_DIR/interpret-artifact.md` |
-| **2** | **Preflight** | **v0.1.0.** Initial version. Adds the canonical BettaMt / `bettamt-preflight` structure (§0 Inputs/Outputs contract, §0. | `preflight/` | `$RUN_DIR/preflight.md` |
-| **3** | **Run** | **v0.1.0.** Initial version. Adds the canonical BettaMt structure (§0 Inputs/Outputs contract, §0.5 Ask-User Stop Points | `run/` | `$RUN_DIR/run-summary.md` |
-
-> [!TIP]
-> Read each sub-skill's `SKILL.md` for the full procedure, its ask-user stop points, and its signature library (stderr pattern → cause → fix).
-
-## 🧰 Tools
-
-All tools are resolved from conda-forge/bioconda via the pinned `pixi.toml`.
-
-| Tool | Version | Role |
-|:-----|:--------|:-----|
-
-Tool usage is grounded in the offline `docs-corpus/` snapshots (version-matched `--help`/`man` captures, upstream repo docs, and web docs as fallback) — the agent reads these instead of guessing flags.
-
-## 🔄 Update check
-
-Every skill built with [bioinfo-skill-creator](https://github.com/cheahhl814/bioinfo-skill-creator) ships a self-update check that compares the deployed git SHA against this upstream repo via `git fetch` — no GitHub API call, no extra dependencies.
-
-```bash
-pixi run update-check
-```
-
-| Verdict | Exit | Meaning |
-|:--------|:-----|:--------|
-| `UP-TO-DATE` | 0 | Local HEAD matches origin/HEAD |
-| `LOCAL-AHEAD` | 0 | Unpushed local commits; no action needed |
-| `BEHIND-BY-N` | 1 | Upstream is N commits ahead → re-pull/re-sync from this repo |
-| `OFFLINE` | 2 | `git fetch` failed; informational only |
-| `NO-ORIGIN` | 2 | No `origin` remote configured; informational only |
-
-## 📁 Repository layout
-
-```text
 nf-edna-nanopore/
-├── SKILL.md                 # Master orchestrator (router — start here)
-├── README.md                # This file
-├── pixi.toml                # Pinned tool environment (pixi install)
-├── docs-corpus/             # Offline snapshots of upstream tool docs
-├── interpret/            # Phase sub-skill
-├── preflight/            # Phase sub-skill
-├── run/            # Phase sub-skill
-├── bin/
-│   └── skill-update-check.py  # Self-update check (pixi run update-check)
-└── bin/
-    └── scaffold-render.py     # Reproducibility — re-render the skill from params.json
+├── SKILL.md                              # Router / orchestrator
+├── README.md                             # This file
+├── CHANGELOG.md                     # (project root) history of every fix that shaped v0.2.0's defaults
+├── preflight/
+│   └── edna-nanopore-intake/
+│       └── SKILL.md                      # Validate inputs, write pipeline_state.json
+├── run/
+│   └── edna-nanopore-run/
+│       └── SKILL.md                      # Run each bin/run_*.sh script, agent-driven
+├── interpret/
+│   └── edna-nanopore-interpret/
+│       └── SKILL.md                      # Generate report + narrative + cross-method comparison
+├── reference-db/
+│   ├── SKILL.md                          # Catalog + download/build reference assets
+│   ├── preflight/reference-db-preflight/SKILL.md
+│   ├── run/reference-db-run/SKILL.md
+│   ├── CATALOG_SECTION_KRAKEN2_16S.md
+│   ├── CATALOG_SECTION_TARGETED_LOCI.md
+│   └── bin/build_tax_lookup.py           # Build taxonomy lookup from NCBI (ref2taxid + rankedlineage.dmp)
+└── runners/
+    └── manual-runner/
+        ├── defaults/
+        │   └── 16s-nanopore.json         # Flexible 16S preset + validated per-method defaults
+        ├── env/                          # Pixi per-stage environments
+        │   ├── qc/pixi.toml
+        │   ├── cluster/pixi.toml
+        │   ├── classification/pixi.toml
+        │   ├── association/pixi.toml
+        │   ├── diversity/pixi.toml
+        │   └── decontam/{pixi.toml, Manifest.toml, Project.toml}
+        └── bin/
+            ├── run_qc.sh                      # Stage 1 (shared)
+            ├── run_readbased_minimap2.sh      # Method 1
+            ├── run_readbased_idtaxa.sh        # Method 2
+            ├── run_consensus_idtaxa.sh        # Method 3
+            ├── cluster_graph.py               # Used by run_consensus_idtaxa.sh
+            ├── medaka_polish_one.sh            # Used by run_consensus_idtaxa.sh
+            ├── minimap2_lca.py
+            ├── idtaxa_rds.R
+            ├── filter_idtaxa_by_confidence.jl
+            ├── merge_tables.R
+            ├── filter_table.jl
+            ├── decontam.jl
+            ├── decontam_by_taxon.jl
+            ├── agglomerate_data.R
+            ├── alpha_diversity.R
+            ├── beta_diversity.R
+            ├── community_typing.R
+            ├── differential_abundance.R
+            ├── correlation_analysis.R
+            └── root_tree.R
 ```
 
-## 🔒 Hard guarantees
+---
 
-- **Filesystem evidence chain** — every phase emits the artifact the next phase consumes; the boundary between phases is the filesystem, not agent memory.
-- **Docs-grounded tool usage** — tool flags come from `docs-corpus/`, never from the agent's memory.
-- **Explicit stop points** — ambiguous decisions are surfaced to you as *Evidence + Recommend + Options*, not auto-picked.
-- **Reproducible environments** — every tool is pinned in `pixi.toml` and resolved via pixi.
+## The three methods in detail
 
-## 🚀 Nextflow runner
+### readbased_minimap2 (`bin/run_readbased_minimap2.sh`)
 
-For production / HPC / cohort runs, the skill ships a thin Nextflow DSL2 runner at `runners/nextflow-runner/` (nf-core-style resource labels, pinned containers, trace/report/timeline enabled).
+QC → minimap2 alignment + LCA against RefSeq-16S, per read, no clustering.
+Species-level where the reference has species headers; every read is
+counted independently (no clustering threshold to dilute rare taxa).
+**Blind spot**: RefSeq's curated Targeted Loci collection under-represents
+uncultured/`Candidatus` environmental lineages — verified case:
+`Candidatus Solibacter`/`Koribacter`, zero usable RefSeq hits for either.
 
-```bash
-# Stub smoke test (builds the DAG without executing)
-nextflow run runners/nextflow-runner/main.nf -profile test -stub-run
+### readbased_idtaxa (`bin/run_readbased_idtaxa.sh`)
 
-# Real run
-nextflow run runners/nextflow-runner/main.nf --input <samplesheet.csv> --outdir <outdir> -profile docker
-```
+QC → DECIPHER IdTaxa + SILVA, per read, no clustering. Exists specifically
+to isolate the reference-database effect from the clustering effect (run
+alongside the other two to triangulate). Defaults to a 10,000-read/sample
+subsample for runtime reasons — full-depth is possible but can take the
+better part of a day on a large dataset.
 
-The bash recipes remain the source of truth; the runner is a thin executor.
+### consensus_idtaxa (`bin/run_consensus_idtaxa.sh`)
 
-## Provenance
+QC → minimap2 self-map → yacrd chimera filter → greedy clustering →
+medaka consensus polishing → DECIPHER IdTaxa + SILVA. The only method that
+error-corrects reads before classification, and the only one producing
+representative sequences (enabling diversity/DAA/correlation downstream).
+**Blind spots**: genus is the resolution ceiling (same SILVA model as
+`readbased_idtaxa`); cost scales with *compositional skew* within a
+sample, not just read count (a sample dominated by one organism can make
+the self-mapping step blow up combinatorially).
 
-Built with the [bioinfo-skill-creator](https://github.com/cheahhl814/bioinfo-skill-creator) meta-skill (v1.1.0), following the AiX-BIO skill convention (preflight → build → debug → battle-test evidence chain). Pattern adopted from:
+---
 
-- **BettaMt-agents** — https://github.com/cheahhl814/BettaMt-agents
-- **bacterial-genome-analysis** — https://github.com/cheahhl814/bacterial-genome-analysis
-- **amr-gene-screening** — https://github.com/cheahhl814/amr-gene-screening
+## Composability with other AiX-BIO skills
+
+| Skill | When to chain |
+|---|---|
+| `reference-db` (this repo) | Run **before** the first nf-edna-nanopore run if you don't yet have reference assets |
+| `nf-edna` | Reference for `idtaxa-training` if you want a custom-trained (non-SILVA) IdTaxa model |
+| `edna-visualize` / `edna-gbif-publish` | `consensus_idtaxa` output only (the only method with rep-seqs) |
+
+---
+
+## Parameters
+
+### Preset: `runners/manual-runner/defaults/16s-nanopore.json`
+
+Validated defaults, each traceable to a specific finding in
+`CHANGELOG.md`:
+
+| Parameter | Default | Notes |
+|---|---|---|
+| `qc.min_length` | 450 | Raw-read floor (chopper) |
+| `qc.min_length_trimmed` | 350 | **Separate** post-primer-trim floor — reusing the raw floor here rejected most correctly-trimmed inserts (Bug 29) |
+| `qc.max_length` | 1600 | Override per amplicon class |
+| `qc.primer_revcomp` | true | `cutadapt --revcomp` — without it, ~55-63% of genuine reverse-strand reads were silently discarded (Bug 28) |
+| `readbased_minimap2.min_percent_identity` | 0.85 | Not the Illumina/wf-16s default of 0.97 — too strict for ONT |
+| `readbased_idtaxa.subsample_n` | 10000 | Set to 0 to classify every read at full cost |
+| `consensus.cluster_min_identity` | 0.95 | Distinct from `readbased_minimap2`'s 0.85 — different step, different meaning |
+| `consensus.medaka_model` | `r1041_e82_400bps_sup_v5.0.0` | Must match your flow cell chemistry — no universal default |
+| `*.idtaxa_threshold` | 60 | Matches `DECIPHER::IdTaxa()`'s own internal default — lowering a downstream filter below 60 is a no-op; the threshold must be passed into the `IdTaxa()` call itself to actually change |
+| `*.decontam_threshold` | 0.1 | Ratio threshold (taxon-level) / p-value threshold (ASV-level), semantics differ by script |
+
+---
 
 ## License
 
-Released under the MIT License — see the license file in this repository for details.
+See individual files and third-party tool licenses. The pipeline code is by Cheah Hong Leong. Reference databases (NCBI RefSeq, SILVA, Kraken2) are subject to their respective terms — see `reference-db/SKILL.md` and the `CATALOG_SECTION_*.md` files for details.
+
+---
+
+## Author
+
+**Cheah Hong Leong** · AiX-BIO
+
+## Version
+
+**0.2.0** — Nextflow removed; pipeline is now agent-driven (direct shell
+invocation of `runners/manual-runner/bin/run_*.sh` scripts). Replaced the
+v0.1.0 exclusive `consensus`/`read_based` variant choice with three
+classification methods run by default (`readbased_minimap2`,
+`readbased_idtaxa`, `consensus_idtaxa`), per a real cross-method
+comparison that found substantial, informative divergence between them.
+See `CHANGELOG.md` for the full history of fixes that shaped these
+defaults.

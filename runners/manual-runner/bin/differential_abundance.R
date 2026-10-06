@@ -119,11 +119,15 @@ message(paste("TreeSummarizedExperiment object created with dimensions:", dim(ts
 
 # --- Agglomerate if needed ---
 if (tolower(args$level_to_analyze) != "asv") {
-    message(paste("Agglomerating data to", args$level_to_analyze, "level for DAA..."))
-    # Ensure the rank exists in the rowData
-    if (!args$level_to_analyze %in% colnames(rowData(tse))) {
+    # Taxonomy column names (e.g. from minimap2_lca) are lowercase
+    # ("genus"); --level_to_analyze defaults to title case ("Genus").
+    # Match case-insensitively and use the real column name throughout.
+    rank_match_idx <- match(tolower(args$level_to_analyze), tolower(colnames(rowData(tse))))
+    if (is.na(rank_match_idx)) {
         stop(paste("Taxonomic rank '", args$level_to_analyze, "' not found in taxonomy data. Cannot agglomerate."))
     }
+    args$level_to_analyze <- colnames(rowData(tse))[rank_match_idx]
+    message(paste("Agglomerating data to", args$level_to_analyze, "level for DAA..."))
     tse <- agglomerateByRank(tse, rank = args$level_to_analyze)
     message(paste("Agglomerated TSE has dimensions:", dim(tse)[1], "features and", dim(tse)[2], "samples."))
 }

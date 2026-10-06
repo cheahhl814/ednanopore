@@ -136,21 +136,11 @@ def run_minimap2(query_fasta, ref_mmi, extra_args):
 
 def parse_sam(sam_text):
     """Yield dicts of fields we need: qname, flag, refname, pct_identity, ref_coverage."""
-    ref_lengths = {}  # refname -> ref length (parsed from @SQ lines)
     header_seen = False
     for line in sam_text.splitlines():
         if not line:
             continue
         if line.startswith("@"):
-            # @SQ SN:acc LN:len
-            if line.startswith("@SQ"):
-                parts = line.split("\t")
-                d = {kv.split(":", 1)[0]: kv.split(":", 1)[1] for kv in parts[1:] if ":" in kv}
-                if "SN" in d and "LN" in d:
-                    try:
-                        ref_lengths[d["SN"]] = int(d["LN"])
-                    except ValueError:
-                        pass
             header_seen = True
             continue
         if not header_seen:
@@ -181,7 +171,8 @@ def parse_sam(sam_text):
         # Compute alignment length from CIGAR (sum of M/=/X/I/D)
         cigar = cols[5]
         aln_len = 0
-        ref_aln_len = 0  # bases on reference consumed (M/=/X/D)
+        query_aln_len = 0   # query bases consumed by the alignment (M/=/X/I)
+        query_total_len = 0 # full query length incl. soft-clips (M/=/X/I/S)
         num = ""
         for ch in cigar:
             if ch.isdigit():
@@ -194,8 +185,11 @@ def parse_sam(sam_text):
                 num = ""
                 if ch in ("M", "=", "X", "I", "D"):
                     aln_len += n
-                    if ch in ("M", "=", "X", "D"):
-                        ref_aln_len += n
+                if ch in ("M", "=", "X", "I"):
+                    query_aln_len += n
+                    query_total_len += n
+                elif ch == "S":
+                    query_total_len += n
         if nm is None:
             # Fallback: use CIGAR M/=/X as proxy for mismatches+ matches;
             # without NM we cannot compute exact identity, so use mapq as a
@@ -205,12 +199,16 @@ def parse_sam(sam_text):
             continue
         # pct identity = 1 - (edit distance / alignment length)
         pct_identity = max(0.0, 1.0 - (nm / aln_len))
-        # ref coverage = ref bases aligned / total ref length
-        ref_len = ref_lengths.get(refname, 0)
-        if ref_len <= 0:
-            ref_coverage = 1.0  # best-effort if no @SQ (assume full)
+        # coverage = fraction of the QUERY (read/amplicon) that aligned.
+        # We deliberately measure query coverage, not reference coverage:
+        # queries here are short V3-V4 amplicons (~450-750bp) mapped
+        # against full-length 16S reference genes (~1400-1500bp), so a
+        # correct amplicon alignment only ever covers ~30% of the
+        # reference — reference-coverage would reject every real hit.
+        if query_total_len <= 0:
+            ref_coverage = 1.0  # best-effort if CIGAR unavailable
         else:
-            ref_coverage = ref_aln_len / ref_len
+            ref_coverage = query_aln_len / query_total_len
         yield {
             "qname": qname,
             "refname": refname,
@@ -237,8 +235,11 @@ def load_taxonomy(tax_lookup_path):
                 continue
             acc = row[0].strip()
             lineage_str = ";".join(row[1:]).strip()
-            # Split and strip "rank: " prefixes if present.
-            parts = [p.strip() for p in lineage_str.split(";") if p.strip()]
+            # Split and strip "rank: " prefixes if present. Keep blank
+            # leading fields (e.g. ";;;;;Genus;species") so each element
+            # stays aligned to its RANK_COLUMNS position — dropping them
+            # would left-shift genus/species into superkingdom/phylum.
+            parts = [p.strip() for p in lineage_str.split(";")]
             cleaned = []
             for p in parts:
                 # If the segment is like "domain: Bacteria" keep just the taxon.
@@ -278,12 +279,11 @@ def lca(lineages):
         return []
     if len(lineages) == 1:
         return list(lineages[0])
-    # Index-wise compare
+    # Index-wise compare: check rank i consistently across all lineages
+    # (not lineages[i][i], which walked diagonally across different hits).
     lca_list = []
     for i in range(min(len(l) for l in lineages)):
-        first = lineages[i][i] if i < len(lineages[0]) else None
-        if first is None:
-            break
+        first = lineages[0][i]
         if all(i < len(l) and l[i] == first for l in lineages):
             lca_list.append(first)
         else:

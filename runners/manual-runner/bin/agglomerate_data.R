@@ -104,22 +104,22 @@ message(paste("Original ASV-level TreeSummarizedExperiment (tse_asv) created wit
 # --- Cleaning the ASV-level TreeSummarizedExperiment ---
 message("Cleaning ASV-level data...")
 
-# 1. Remove ASVs with unassigned Kingdom (skipped when kingdoms="all")
-if (args$kingdoms != "all") {
-    initial_asvs <- nrow(tse_asv)
-    tse_asv <- tse_asv[!is.na(rowData(tse_asv)$superkingdom) & rowData(tse_asv)$superkingdom != "", ]
-    message(paste("Removed", initial_asvs - nrow(tse_asv), "ASVs with unassigned Kingdom. Remaining:", nrow(tse_asv), "ASVs."))
-} else {
-    message("Skipping Kingdom NA filter (kingdoms='all').")
-}
-
-# 2. Kingdom-level filtering
+# 1. Kingdom-level filtering (skipped when kingdoms="all")
+# Note: some reference databases (e.g. RefSeq-16S-derived tax_lookup.tsv)
+# leave superkingdom blank for a large fraction of otherwise well-classified
+# entries (genus/species still populated) — this is a data-completeness gap,
+# not evidence the organism is off-target. We therefore only DROP a record
+# when superkingdom is explicitly populated with something outside
+# --kingdoms; blank/NA superkingdom is kept rather than treated as exclusion.
 if (args$kingdoms != "all") {
     kingdoms_to_keep <- unlist(strsplit(args$kingdoms, ","))
     if ("superkingdom" %in% colnames(rowData(tse_asv))) {
         initial_asvs <- nrow(tse_asv)
-        tse_asv <- tse_asv[rowData(tse_asv)$superkingdom %in% kingdoms_to_keep, ]
-        message(paste("Removed", initial_asvs - nrow(tse_asv), "ASVs not classified as", paste(kingdoms_to_keep, collapse = " or "), ". Remaining:", nrow(tse_asv), "ASVs."))
+        sk <- rowData(tse_asv)$superkingdom
+        keep_mask <- is.na(sk) | sk == "" | sk %in% kingdoms_to_keep
+        tse_asv <- tse_asv[keep_mask, ]
+        message(paste("Removed", initial_asvs - nrow(tse_asv), "ASVs explicitly classified outside",
+                       paste(kingdoms_to_keep, collapse = " or "), ". Remaining:", nrow(tse_asv), "ASVs."))
     } else {
         warning("superkingdom column not found in taxonomy. Cannot filter for specified kingdoms.")
     }
