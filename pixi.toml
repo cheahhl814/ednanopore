@@ -1,6 +1,6 @@
 [workspace]
 name = "ednanopore"
-version = "0.4.0"
+version = "0.5.0"
 description = "Agent-driven Nanopore 16S eDNA metabarcoding: three cross-classification methods (minimap2/RefSeq, IdTaxa/SILVA consensus and read-based), with reference-database retrieval delegated to biodb-fetch."
 channels = ["conda-forge", "bioconda"]
 # linux-64 only: the validated per-run tool pins (medaka/julia/bioconductor stack) do not

@@ -1,0 +1,45 @@
+{
+  "marker": "ITS",
+  "kingdoms": "Fungi",
+  "daa_level": "Genus",
+  "correlation_level": "Genus",
+  "target_ranks": "Kingdom,Phylum,Family,Genus",
+  "geocurate": false,
+
+  "qc": {
+    "min_length": 0,
+    "min_length_trimmed": 0,
+    "max_length": 0,
+    "min_qual": 10,
+    "primer_revcomp": true,
+    "primers_fwd": "",
+    "primers_rev": "",
+    "_primer_note": "empty by design — and the length window is INTENTIONALLY unset: ITS amplicon length is highly variable (short ITS2 up to near-full ITS1-5.8S-ITS2). Intake SP2 MUST set min/max length from the lab's primer pair before any run; this preset refuses downstream execution until both are non-zero."
+  },
+
+  "readbased_minimap2": {
+    "min_percent_identity": 0.82,
+    "min_ref_coverage": 0.8,
+    "decontam_threshold": 0.1,
+    "ref_db": "biodb-fetch:unite --version 10.2 --taxon_group fungi --type static --file-url <pinned-UNITE-static-fasta-url> (PlutoF DOI-pinned; grab the exact file URL from the UNITE repository page per reference-db catalog)"
+  },
+
+  "readbased_idtaxa": {
+    "idtaxa_threshold": 60,
+    "decontam_threshold": 0.1,
+    "subsample_n": 10000,
+    "subsample_seed": 42,
+    "ref_db": "NO stock IdTaxa model for ITS — opt-in only, after training a custom model from the fetched UNITE FASTA; chain to nf-edna/idtaxa-training. Default classifier is readbased_minimap2."
+  },
+
+  "consensus": {
+    "cluster_min_identity": 0.95,
+    "cluster_min_coverage_fraction": 0.8,
+    "yacrd_min_coverage": 0.3,
+    "yacrd_min_length": 100,
+    "medaka_model": "r1041_e82_400bps_sup_v5.0.0",
+    "classifier": "minimap2",
+    "classifier_note": "ITS consensus classifies via minimap2-LCA against UNITE; no SILVA-model shortcut",
+    "decontam_threshold": 0.1
+  }
+}

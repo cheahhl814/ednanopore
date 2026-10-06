@@ -1,6 +1,44 @@
 # Changelog
 
+## v0.5.0 — Multi-marker: 18S, 12S, COI, ITS join 16S (other domains, not just Bacteria)
+
+**First-class multi-marker support.** v0.4.0's skill was bacterial/archaeal
+16S-only (the intake SP2 gate hard-checked marker == '16S'). v0.5.0
+generalizes to per-marker presets, seeded by the 6-marker panel run plan
+(16S-full 1400-1700, 18S-full 1700-1850, 18S-V9/Euka02 120-200,
+12S-MiFish 180-260, COI 260-450).
+
+### What changed
+
+- **Per-marker presets** (`runners/manual-runner/defaults/`): new
+  `18s-full.json`, `18s-v9.json`, `12s.json`, `coi.json`, `its.json`
+  alongside the untouched battle-tested `16s-nanopore.json`. Each carries
+  length-window defaults, kingdoms, per-method tuning inherited from the
+  16S values, the biodb-fetch retrieval key for its references, and
+  _deliberately empty_ primer fields (primers are a per-run intake input,
+  confirmed against the lab protocol — presets do not hard-code them).
+  Adding a marker is now data-only: drop a preset file, no sub-skill code
+  changes.
+- **Intake**: SP2 generalizes from the 16S-only gate to marker normalization +
+  preset discovery; new SP2b offers scaffolding a preset for an unlisted
+  marker; SP3's reference messaging is marker-aware. `pipeline_state.json`
+  now records the resolved `marker_preset` path.
+- **reference-db**: new §4 + `CATALOG_SECTION_NON16S.md` — 18S via SILVA/PR2,
+  12S via MitoHelper/MitoFish (biodb-fetch `mitohelper`), COI via MIDORI2
+  (CC-BY-NC, license-gated at the script) or BOLD (per-taxon API), ITS via
+  UNITE (biodb-fetch `unite`); all retrieval executes through biodb-fetch's
+  manifest.tsv contract. IdTaxa notes: the stock SILVA SSU r138.2 pre-trained
+  model covers 16S AND 18S (no retraining); 12S/COI/ITS have NO stock model —
+  IdTaxa is opt-in behind custom training via `nf-edna/idtaxa-training`, and
+  minimap2-LCA is the default classifier for those markers (encoded in
+  `consensus.classifier` per preset).
+- **Classifier-method honesty**: for 12S/COI/ITS the "three methods by
+  default" rule adapts — readbased_minimap2 + consensus(by minimap2-LCA) run
+  by default; readbased_idtaxa runs only after a custom model is trained.
+  The cross-method comparison in the report flags whichever methods ran.
+
 ## v0.4.0 — Renamed to ednanopore (Nextflow-free name)
+
 
 The skill no longer uses Nextflow (removed in v0.2.0), so the `nf-` prefix
 was misleading — within this skill tree `nf-` denotes Nextflow pipelines

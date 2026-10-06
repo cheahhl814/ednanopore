@@ -1,0 +1,45 @@
+{
+  "marker": "18S-full",
+  "kingdoms": "Eukaryota",
+  "daa_level": "Genus",
+  "correlation_level": "Genus",
+  "target_ranks": "Phylum,Family,Genus",
+  "geocurate": false,
+
+  "qc": {
+    "min_length": 1700,
+    "min_length_trimmed": 1500,
+    "max_length": 1850,
+    "min_qual": 10,
+    "primer_revcomp": true,
+    "primers_fwd": "",
+    "primers_rev": "",
+    "_primer_note": "empty by design — canonical primers are a per-run intake input; confirm against the lab protocol at SP2"
+  },
+
+  "readbased_minimap2": {
+    "min_percent_identity": 0.82,
+    "min_ref_coverage": 0.8,
+    "decontam_threshold": 0.1,
+    "ref_db": "biodb-fetch:silva|pr2 (SILVA 18S subset or PR2; MMI + tax_lookup built locally per reference-db/run)"
+  },
+
+  "readbased_idtaxa": {
+    "idtaxa_threshold": 60,
+    "decontam_threshold": 0.1,
+    "subsample_n": 10000,
+    "subsample_seed": 42,
+    "ref_db": "biodb-fetch:decipher --drive-id 1w3wdSCpSihntWkbP_zvXz7r3s-tNB8DV (SILVA SSU r138.2 — the DECIPHER pre-trained model covers BOTH 16S and 18S; no separate 18S model needed)"
+  },
+
+  "consensus": {
+    "cluster_min_identity": 0.95,
+    "cluster_min_coverage_fraction": 0.8,
+    "yacrd_min_coverage": 0.4,
+    "yacrd_min_length": 100,
+    "medaka_model": "r1041_e82_400bps_sup_v5.0.0",
+    "classifier": "idtaxa",
+    "idtaxa_threshold": 60,
+    "decontam_threshold": 0.1
+  }
+}

@@ -1,7 +1,7 @@
 ---
 name: reference-db
-description: Curated catalog of reference-database sources for ednanopore's 16S classifiers — NCBI RefSeq Targeted Loci (minimap2 MMI + taxonomy lookup TSV, the default `minimap2` classifier), pre-built Kraken2 16S indexes (the `kraken2` alt classifier), and SILVA DECIPHER IdTaxa (the opt-in `idtaxa` classifier, reused unmodified from nf-edna). Download EXECUTION is delegated to the biodb-fetch dependency skill (github.com/cheahhl814/biodb-fetch — scripts/marker_refs.py + manifest.tsv contract); this sub-skill keeps curation (which URL/version/license), local index building (minimap2 -d, tax_lookup join, IdTaxa model placement), and verdict gating. Mirrors the BettaMt ask-user-stop-points pattern used by nf-edna's reference-db skill, adapted for Nanopore's minimap2/Kraken2-first classifier stack instead of nf-edna's DECIPHER-only one. Use when the user asks to "get a 16S reference for ednanopore", "download the minimap2 16S index", "get a Kraken2 16S database", "where do I get the reference for the Nanopore pipeline", or "build the tax_lookup TSV".
-version: 0.4.0
+description: Curated catalog of reference-database sources for ednanopore's classifiers — for 16S: NCBI RefSeq Targeted Loci (minimap2 MMI + taxonomy lookup TSV, the default `minimap2` classifier), pre-built Kraken2 16S indexes (the `kraken2` alt classifier), and SILVA DECIPHER IdTaxa (the opt-in `idtaxa` classifier); since v0.5.0 also non-16S markers — 18S (SILVA/PR2 + the same SILVA SSU IdTaxa model), 12S (MitoHelper/MitoFish), COI (MIDORI2 CC-BY-NC / BOLD), ITS (UNITE), all retrieved via the biodb-fetch dependency skill (github.com/cheahhl814/biodb-fetch — scripts/marker_refs.py + manifest.tsv contract); this sub-skill keeps curation (which URL/version/license), local index building (minimap2 -d, tax_lookup join, IdTaxa model placement), and verdict gating. Mirrors the BettaMt ask-user-stop-points pattern. Use when the user asks to "get a reference for ednanopore", "download the 16S minimap2 index", "get an 18S/12S/COI/ITS reference", "where do I get the reference for the Nanopore pipeline", or "build the tax_lookup TSV".
+version: 0.5.0
 updated: "2026-10-06"
 triggers:
   - "reference for ednanopore"
@@ -37,7 +37,8 @@ Use this sub-skill when you need to:
 
 - Get the **default classifier's reference** — a minimap2 MMI + `tax_lookup` TSV built from NCBI RefSeq Targeted Loci 16S (§1).
 - Get a **pre-built Kraken2 16S database** for `params.classifier: "kraken2"` (§2).
-- Get the **opt-in IdTaxa reference** for `params.classifier: "idtaxa"` (§3 — same file as nf-edna's `16s.json` preset).
+- Get the **opt-in IdTaxa reference** for `params.classifier: "idtaxa"` (§3 — SILVA SSU r138.2; the stock DECIPHER-pre-trained model covers BOTH 16S and 18S).
+- Get a reference for a **non-16S marker** — 18S, 12S (MiFish), COI (MIDORI2/BOLD), ITS (UNITE) — from the per-marker catalog (§4, [`CATALOG_SECTION_NON16S.md`](CATALOG_SECTION_NON16S.md)).
 - Decide which classifier mode fits your use case before committing to a reference download.
 
 **Do NOT use this skill** if:
@@ -138,7 +139,25 @@ Identical to nf-edna's `reference-db` §1.1 first row — reused unchanged, sinc
 
 Download via biodb-fetch's `decipher` key (§0.6 — gdown runs inside its env). Set `params.idtaxa_model` to the downloaded path. **Not applicable to Variant B (read_based)** — idtaxa needs polished consensus sequences, not raw noisy reads.
 
-## 4. Where downloaded files go
+## 4. Non-16S markers: 18S / 12S / COI / ITS (v0.5.0)
+
+See the full section: [`CATALOG_SECTION_NON16S.md`](CATALOG_SECTION_NON16S.md).
+
+Marker → source → biodb-fetch retrieval key routing (curation below, retrieval executed by biodb-fetch per §0.6):
+
+| Marker | Reference | biodb-fetch key | IdTaxa? |
+|---|---|---|---|
+| 18S (full + V9) | SILVA 18S subset / PR2 | `silva` / `pr2` | ✅ stock SILVA SSU model (§3, shared with 16S — do not retrain) |
+| 12S (MiFish-class) | MitoHelper / MitoFish (Zenodo v42) | `mitohelper --doi-id 17602902` | opt-in only — custom training via `nf-edna/idtaxa-training` |
+| COI | MIDORI2 (CC-BY-NC, gated) or BOLD per-taxon | `midori2 --i-accept-license` / `bold --taxon <T>` | opt-in only — custom training |
+| ITS | UNITE v10.2+ (PlutoF DOI-pinned) | `unite --version 10.2 ...` | opt-in only — custom training |
+
+Default classifier for 12S/COI/ITS is **minimap2-LCA**; the marker presets
+(`runners/manual-runner/defaults/*.json`) encode this in their `consensus.classifier`
+field. Building the MMI + `tax_lookup` after each fetch works identically to
+the 16S flow in `run/reference-db-run/SKILL.md` §2.
+
+## 4b. Where downloaded files go
 
 ```
 $ASSETS_DIR/                              # e.g. your project data area/ednanopore/assets/
@@ -150,9 +169,27 @@ $ASSETS_DIR/                              # e.g. your project data area/ednanopo
 │       ├── hash.k2d
 │       ├── opts.k2d
 │       └── taxo.k2d
-└── 16s_idtaxa/                             # opt-in, Variant A only
-    └── SILVA_SSU_r138.2.rdata
+├── 16s_idtaxa/                             # shared stock model — covers BOTH 16S and 18S
+│   └── SILVA_SSU_r138.2.rdata
+├── 18s_minimap2/                           # v0.5.0 — per-marker dirs mirror 16s_*
+│   ├── 18S_refseq.mmi                      # e.g. PR2 or SILVA-18S-derived MMI
+│   └── tax_lookup.tsv
+├── 12s_minimap2/                           # v0.5.0 — MitoHelper/MitoFish-derived
+│   ├── 12S_mitofish.mmi
+│   └── tax_lookup.tsv
+├── coi_minimap2/                           # v0.5.0 — MIDORI2/BOLD-derived
+│   ├── COI_midori.mmi
+│   └── tax_lookup.tsv
+├── its_minimap2/                           # v0.5.0 — UNITE-derived
+│   ├── ITS_unite.mmi
+│   └── tax_lookup.tsv
+└── coi_idtaxa/                             # custom-trained models (opt-in), one dir per marker
+    └── COI_<source>_idtaxa.rds            # trained via nf-edna/idtaxa-training
 ```
+
+Per-marker naming convention: `$ASSETS_DIR/<marker>_<mode>/` — intake SP3
+validates the path the preset's `ref_db` implies; run_summary.json records
+what was fetched (via biodb-fetch's manifest.tsv) and what was built locally.
 
 ## 5. Quick start
 

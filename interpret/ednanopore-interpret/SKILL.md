@@ -1,7 +1,7 @@
 ---
 name: ednanopore-interpret
 description: "Turn ednanopore pipeline outputs (readbased_minimap2, readbased_idtaxa, consensus_idtaxa — up to three methods, run by default) into a structured Markdown report with a mandatory cross-method comparison, a plain-language narrative summary, and an interactive Q&A session. The report always surfaces large (>2x) disagreements between methods as findings to flag, not noise to average away — this is the core value of running three methods instead of one. Diversity/DAA/correlation sections are consensus_idtaxa-only (it's the only method producing rep-seqs for phylogenetic placement). Refuses to interpret if upstream pipeline_state.json.completed_stages lacks at least one classification method. Has 4 explicit ask-user stop points (SP1-SP4). Triggers: 'interpret Nanopore 16S results', 'ONT 16S report', 'summarize Nanopore run', 'MinION 16S Results section', 'eDNA Nanopore diversity interpretation', 'eDNA Nanopore differential abundance', 'compare Nanopore classification methods'."
-version: 0.4.0
+version: 0.5.0
 updated: "2026-10-06"
 triggers:
   - "interpret Nanopore 16S results"
@@ -44,7 +44,7 @@ triggers:
 
 ## When to Use This Skill
 
-- **Interpret a completed Nanopore 16S run** (at least one classification method has run).
+- **Interpret a completed Nanopore run** (any marker; the report header records which marker/preset ran). (at least one classification method has run).
 - **Generate `<run_id>-report.md`** with Run Summary, Methods Run & Cross-Method Comparison, QC, Taxonomy Overview (per method + comparison), Diversity/DAA/Correlation (consensus_idtaxa only), Caveats.
 - **Generate a plain-language narrative** for a manuscript Results-section draft.
 - **Enter an interactive Q&A session**.

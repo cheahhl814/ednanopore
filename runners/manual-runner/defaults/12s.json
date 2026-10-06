@@ -1,0 +1,46 @@
+{
+  "marker": "12S",
+  "kingdoms": "Vertebrata",
+  "daa_level": "Species",
+  "correlation_level": "Species",
+  "target_ranks": "Family,Genus,Species",
+  "geocurate": true,
+  "geocurate_buffer": 500,
+
+  "qc": {
+    "min_length": 180,
+    "min_length_trimmed": 130,
+    "max_length": 260,
+    "min_qual": 10,
+    "primer_revcomp": true,
+    "primers_fwd": "",
+    "primers_rev": "",
+    "_primer_note": "empty by design — panel plan is MiFish-U/MiFish-L class; confirm exact sequences at intake SP2"
+  },
+
+  "readbased_minimap2": {
+    "min_percent_identity": 0.85,
+    "min_ref_coverage": 0.8,
+    "decontam_threshold": 0.1,
+    "ref_db": "biodb-fetch:mitohelper --doi-id 17602902 (MitoHelper/MitoFish 12S Zenodo reference; MMI + tax_lookup built locally per reference-db/run)"
+  },
+
+  "readbased_idtaxa": {
+    "idtaxa_threshold": 60,
+    "decontam_threshold": 0.1,
+    "subsample_n": 10000,
+    "subsample_seed": 42,
+    "ref_db": "NO stock IdTaxa model exists for 12S (SILVA SSU does not cover 12S) — opt-in only, after training a custom model from the fetched MitoFish FASTA; chain to nf-edna/idtaxa-training. Default classifier is readbased_minimap2."
+  },
+
+  "consensus": {
+    "cluster_min_identity": 0.95,
+    "cluster_min_coverage_fraction": 0.8,
+    "yacrd_min_coverage": 0.4,
+    "yacrd_min_length": 50,
+    "medaka_model": "r1041_e82_400bps_sup_v5.0.0",
+    "classifier": "minimap2",
+    "classifier_note": "12S consensus classifies via minimap2-LCA against MitoFish (no SILVA-model shortcut); species-level calls are the default target rank, which is why this marker is usually the consensus-method workhorse",
+    "decontam_threshold": 0.1
+  }
+}

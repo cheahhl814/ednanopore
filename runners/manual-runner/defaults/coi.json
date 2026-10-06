@@ -1,0 +1,46 @@
+{
+  "marker": "COI",
+  "kingdoms": "Metazoa",
+  "daa_level": "Species",
+  "correlation_level": "Species",
+  "target_ranks": "Phylum,Family,Genus,Species",
+  "geocurate": true,
+  "geocurate_buffer": 500,
+
+  "qc": {
+    "min_length": 260,
+    "min_length_trimmed": 200,
+    "max_length": 450,
+    "min_qual": 10,
+    "primer_revcomp": true,
+    "primers_fwd": "",
+    "primers_rev": "",
+    "_primer_note": "empty by design — panel plan window is 260-450 bp; confirm exact primer set (e.g. the lab's LCO/HCO or mICOI variant) at intake SP2"
+  },
+
+  "readbased_minimap2": {
+    "min_percent_identity": 0.85,
+    "min_ref_coverage": 0.8,
+    "decontam_threshold": 0.1,
+    "ref_db": "biodb-fetch:midori2 --i-accept-license (MIDORI2 LONG/LINC reference, CC-BY-NC — the script refuses without explicit license acceptance) or biodb-fetch:bold --taxon <T> (BOLD REST API, per-taxon COI pulls); MMI + tax_lookup built locally per reference-db/run"
+  },
+
+  "readbased_idtaxa": {
+    "idtaxa_threshold": 60,
+    "decontam_threshold": 0.1,
+    "subsample_n": 10000,
+    "subsample_seed": 42,
+    "ref_db": "NO stock IdTaxa model exists for COI — opt-in only, after training a custom model from the fetched MIDORI2/BOLD FASTA; chain to nf-edna/idtaxa-training. Default classifier is readbased_minimap2."
+  },
+
+  "consensus": {
+    "cluster_min_identity": 0.95,
+    "cluster_min_coverage_fraction": 0.8,
+    "yacrd_min_coverage": 0.4,
+    "yacrd_min_length": 50,
+    "medaka_model": "r1041_e82_400bps_sup_v5.0.0",
+    "classifier": "minimap2",
+    "classifier_note": "COI consensus classifies via minimap2-LCA against MIDORI2/BOLD; no SILVA-model shortcut",
+    "decontam_threshold": 0.1
+  }
+}

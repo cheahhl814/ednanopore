@@ -1,7 +1,7 @@
 ---
 name: ednanopore-intake
 description: "Validate Nanopore (ONT/MinION/PromethION) 16S rRNA eDNA metabarcoding run inputs and write the initial pipeline_state.json with a GO / GO-WITH-WARNINGS / NO-GO verdict. No variant choice — resolves run-time primer/length inputs plus reference-asset paths for all three classification methods (readbased+minimap2/RefSeq, readbased+IdTaxa/SILVA, consensus+medaka+IdTaxa/SILVA), which run by default unless the scientist explicitly opts one out. Computes 7 evidence items. Refuses to write a GO verdict if any required tool or input is missing. The downstream run/ednanopore-run sub-skill refuses to execute without verdict ≥ GO-WITH-WARNINGS. Has 7 explicit ask-user stop points (SP1-SP7). Triggers: 'new Nanopore 16S run', 'ONT 16S intake', 'MinION eDNA intake', 'start ednanopore', 'long-read 16S eDNA pipeline', '16S Nanopore intake', 'eDNA Nanopore parameters'."
-version: 0.4.0
+version: 0.5.0
 updated: "2026-10-06"
 triggers:
   - "new Nanopore 16S run"
@@ -50,7 +50,7 @@ triggers:
 ## Do NOT use this skill
 
 - If you have **Illumina** short reads — use `nf-edna`'s `16s.json` preset instead.
-- If your marker is **not 16S** — this skill is 16S-only in v0.2.0.
+- If your marker is **not in the preset family and you decline SP2b's scaffold offer** — unlisted markers need either a quick preset (SP2b option A) or a different skill. Bundled since v0.5.0: 16S (full-length and partial), 18S (full + V9/Euka02-class), 12S (MiFish-class), COI, ITS.
 - If you have **raw ONT reads that have not been basecalled + demultiplexed** — do that first.
 - If you want to **run the pipeline immediately** — this skill only writes intake state; invoke `run/ednanopore-run` after.
 - If you want to **interpret already-completed results** — invoke `interpret/ednanopore-interpret` instead.
@@ -102,16 +102,26 @@ triggers:
 
 | Trigger | Action |
 | --- | --- |
-| User didn't say 16S and it's not inferable | Ask: "This skill is 16S-only in v0.2.0. (A) my data is 16S, (B) different marker (not supported here), (C) abort" |
+| User didn't name a marker and it's not inferable | Ask: "Which marker did you sequence? (A) 16S — Bacteria/Archaea, (B) 18S — full-length or V9 (Euka02/nano18S-class), (C) 12S — MiFish-class, (D) COI. The ITS / custom-marker path is also open — see below. (E) type something else / abort" |
 
-**Auto-pick when**: 16S is named or obvious from context.
+**Auto-pick when**: the marker is named or obvious from context. **Normalization**: lowercase + hyphen-normalize (e.g. `"18S-V9"`/`"Euka02"` → `18s-v9.json`; `"MiFish"` → `12s.json`; `"16S"` → `16s-nanopore.json`).
+
+### SP2b — Marker not in the preset family (multi-marker extension, v0.5.0+)
+
+| Trigger | Action |
+| --- | --- |
+| A named marker has no `runners/manual-runner/defaults/<marker>.json` | Ask: "There's no bundled preset for `<marker>`. (A) I'll provide primers + a length window now and you scaffold a new preset from an existing one (recommended — presets carry no hardcoded primers anyway), (B) abort and check nf-edna (Illumina) first, (C) abort" |
+
+If (A): copy the taxonomy-nearest preset as `runners/manual-runner/defaults/<kebab-marker>.json`, set kingdoms + length window, leave primers empty for SP1 confirmation, and re-run intake. No sub-skill code changes are needed — preset discovery is data-driven.
+
+**Auto-pick when**: the marker matches an existing preset. Default: never silently guess an unlisted marker — always ask (SP2b).
 
 ### SP3 — Reference-asset paths missing for a method that's running
 
 | Trigger | Action |
 | --- | --- |
-| `readbased_minimap2` is in scope and `ref_mmi`/`tax_lookup` missing | Ask: "readbased+minimap2 needs a 16S reference MMI + taxonomy lookup TSV. (A) give paths now, (B) run `reference-db` sub-skill first, (C) opt this method out (SP5), (D) abort" |
-| `readbased_idtaxa` or `consensus_idtaxa` is in scope and `idtaxa_model` missing | Ask: "Both IdTaxa-based methods need a trained SILVA `.RData`/`.rds`. (A) give the path now, (B) run `reference-db` sub-skill first, (C) opt the IdTaxa methods out (SP5), (D) abort" |
+| `readbased_minimap2` is in scope and `ref_mmi`/`tax_lookup` missing | Ask: "readbased+minimap2 needs a reference MMI + taxonomy lookup TSV for `<marker>` (preset `ref_db` names the correct biodb-fetch source). (A) give paths now, (B) run `reference-db` sub-skill first, (C) opt this method out (SP5), (D) abort" |
+| `readbased_idtaxa` or `consensus_idtaxa` is in scope and `idtaxa_model` missing | Ask: "Both IdTaxa-based methods need a trained model. For 16S/18S the stock SILVA SSU r138.2 pre-trained model covers both (fetched via biodb-fetch's `decipher` key). For 12S/COI/ITS there IS no stock model — train a custom one first via `nf-edna/idtaxa-training` from the biodb-fetch-fetched FASTA, or use minimap2-LCA as the default. (A) give the path now, (B) run `reference-db` sub-skill first, (C) opt the IdTaxa methods out (SP5), (D) abort" |
 
 **Auto-pick when**: the relevant path(s) are already provided for every method in scope.
 
@@ -175,7 +185,7 @@ unless the scientist wants to override.
 - **Environment**: pixi env with `python ≥ 3.10`, `pyyaml`, `git`.
 - **Upstream evidence**: optionally `results/{run_id}/pipeline_state.json` (resume path).
 - **User-provided inputs** (gather once, at the top):
-  - Marker (always 16S in v0.2.0) — SP2
+  - Marker (first-class input since v0.5.0 — resolved against `runners/manual-runner/defaults/*.json`) — SP2 (+SP2b for unlisted markers)
   - Forward + reverse primer sequences, length range — SP1
   - Reference-asset paths for whichever methods are in scope — SP3
   - `medaka_model` (if `consensus_idtaxa` in scope) — SP4
@@ -192,7 +202,16 @@ unless the scientist wants to override.
 
 If the user mentions "Illumina" or "short reads" → STOP, wrong skill, redirect to `nf-edna`.
 
-Ask for primers and length range per SP1 if not already given.
+Resolve SP2: normalize the marker name, locate the preset at
+`runners/manual-runner/defaults/<marker>.json`, and load its kingdoms, length
+windows, classifier defaults, and `ref_db` retrieval keys. The preset's length
+windows are run-plan defaults — the run's own `min_length`/`max_length` from
+SP1 win when provided. Record `marker_preset` (file path) + any overrides in
+`pipeline_state.json`; the run sub-skill passes the resolved values to the
+runner scripts, nothing re-derives them.
+
+Ask for primers and length range per SP1 if not already given (the preset
+ships empty primer fields on purpose).
 
 ### Step 2 — Resume path (if run_id provided)
 

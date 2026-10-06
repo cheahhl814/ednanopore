@@ -1,4 +1,4 @@
-# Nanopore 16S eDNA Metabarcoding (agent-driven)
+# Nanopore eDNA Metabarcoding (agent-driven, multi-marker)
 
 [![Version](https://img.shields.io/badge/version-0.3.0-blue)](#-installation)
 [![Type](https://img.shields.io/badge/type-agent%20skill-blueviolet)](#-installation)
@@ -6,7 +6,7 @@
 
 [![Shape](https://img.shields.io/badge/shape-multi--tool%20pipeline-8A2BE2)](#-pipeline-overview)
 
-End-to-end agent orchestration of Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding. Runs three classification methods by default (readbased+minimap2/RefSeq, readbased+IdTaxa/SILVA, consensus+medaka-polish+IdTaxa/SILVA); no single method is sufficient for ONT data. Reference-database retrieval (RefSeq 16S, SILVA, tax lookups, IdTaxa training seed) is delegated to the biodb-fetch dependency skill.
+End-to-end agent orchestration of Nanopore-sequenced eDNA metabarcoding, multi-marker since v0.5.0: 16S (Bacteria/Archaea), 18S (full-length or V9), 12S (MiFish-class), COI, ITS — each with a bundled marker preset. Runs three classification methods by default (readbased+minimap2/LCA, readbased+IdTaxa/SILVA, consensus+medaka-polish+classification; for 12S/COI/ITS the IdTaxa pair needs a custom-trained model, so minimap2-LCA is the default classifier); no single method is sufficient for ONT data. Reference-database retrieval is delegated to the biodb-fetch dependency skill (SILVA/PR2/MitoHelper/MIDORI2/BOLD/UNITE).
 
 **Repository**: https://github.com/cheahhl814/ednanopore
 
@@ -62,6 +62,10 @@ ONT 16S amplicon
 MinION 16S eDNA
 long-read 16S classification
 full-length 16S nanopore
+Nanopore 18S metabarcoding
+MiFish 12S eDNA
+Nanopore COI metabarcoding
+UNITE ITS nanopore
 ```
 
 ### Manual phase execution
@@ -92,10 +96,10 @@ The analysis follows a phased evidence chain. Each phase consumes the artifacts 
 
 | # | Phase | Goal | Sub-skill | Artifact produced |
 |:--|:------|:-----|:----------|:------------------|
-| **1** | `preflight` | Validate Nanopore 16S run inputs (primer pair, length windows, reference-asset paths, sample manifest) and resolve parameters for all three classification methods | `preflight/ednanopore-intake/` | `results/{run_id}/pipeline_state.json` |
+| **1** | `preflight` | Validate Nanopore run inputs (marker preset, primer pair, length windows, reference-asset paths, sample manifest) and resolve parameters for the classification methods in scope | `preflight/ednanopore-intake/` | `results/{run_id}/pipeline_state.json` |
 | **2** | `run` | Execute the QC stage, then the three classification method scripts (minimap2/RefSeq, IdTaxa/SILVA, consensus+medaka+IdTaxa/SILVA), confirming each with the scientist | `run/ednanopore-run/` | `results/{run_id}/{method}/...` + updated `pipeline_state.json` + `run_summary.json` |
 | **3** | `interpret` | Turn the method outputs into `report.md` + `narrative.md`, always including the mandatory cross-method comparison (large disagreements are findings, not noise) | `interpret/ednanopore-interpret/` | `results/{run_id}/<run_id>-report.md` |
-| **4** | `reference-db` | Curate + locally build the classifier references (RefSeq MMI + tax TSV, Kraken2 16S DB, SILVA IdTaxa model) — downloads delegated to the `biodb-fetch` dependency skill | `reference-db/` | `$ASSETS_DIR/16s_{minimap2,kraken2,idtaxa}/...` + `run_summary.json` |
+| **4** | `reference-db` | Curate + locally build the classifier references (per-marker: RefSeq/PR2/MitoHelper/MIDORI2/BOLD/UNITE MMI + tax TSV, Kraken2 DBs, SILVA/custom IdTaxa models) — downloads delegated to the `biodb-fetch` dependency skill | `reference-db/` | `$ASSETS_DIR/<marker>_{minimap2,kraken2,idtaxa}/...` + `run_summary.json` |
 
 > [!TIP]
 > Read each sub-skill's `SKILL.md` for the full procedure, its ask-user stop points, and its signature library (stderr pattern → cause → fix).

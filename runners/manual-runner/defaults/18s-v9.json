@@ -1,0 +1,43 @@
+{
+  "marker": "18S-V9",
+  "kingdoms": "Eukaryota",
+  "daa_level": "Species",
+  "correlation_level": "Species",
+  "target_ranks": "Phylum,Family,Genus,Species",
+  "geocurate": false,
+
+  "qc": {
+    "min_length": 120,
+    "min_length_trimmed": 100,
+    "max_length": 200,
+    "min_qual": 10,
+    "primer_revcomp": true,
+    "primers_fwd": "",
+    "primers_rev": "",
+    "_primer_note": "empty by design — panel plan uses Euka02-class short-tail primers; confirm the exact sequences at intake SP2"
+  },
+
+  "readbased_minimap2": {
+    "min_percent_identity": 0.82,
+    "min_ref_coverage": 0.8,
+    "decontam_threshold": 0.1,
+    "ref_db": "biodb-fetch:pr2|silva (PR2 or SILVA 18S subset; built locally per reference-db/run)"
+  },
+
+  "readbased_idtaxa": {
+    "idtaxa_threshold": 60,
+    "decontam_threshold": 0.1,
+    "subsample_n": 10000,
+    "subsample_seed": 42,
+    "ref_db": "biodb-fetch:decipher --drive-id 1w3wdSCpSihntWkbP_zvXz7r3s-tNB8DV (SILVA SSU r138.2 covers 18S as well as 16S; V9 fragments fine for short-read IdTaxa classification)"
+  },
+
+  "consensus": {
+    "cluster_min_identity": 0.95,
+    "cluster_min_coverage_fraction": 0.8,
+    "yacrd_min_coverage": 0.4,
+    "yacrd_min_length": 50,
+    "medaka_model": "r1041_e82_400bps_sup_v5.0.0",
+    "_consensus_note": "panel run plan: ~113bp Euka02 fragments are marginal for medaka polishing — intake SP may suggest readbased-only mode for this marker (state the blind-spot cost per SP5)"
+  }
+}

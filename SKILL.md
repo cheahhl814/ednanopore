@@ -1,7 +1,7 @@
 ---
 name: ednanopore
-description: End-to-end agent orchestration of the ednanopore manual (agent-driven, no Nextflow) pipeline for Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding (partial ~350-600bp or full-length ~1500bp amplicons). Runs three complementary classification methods by default — readbased+minimap2/RefSeq (species-level, every read counted), readbased+IdTaxa/SILVA (broader reference, genus-level ceiling), and consensus+medaka-polish+IdTaxa/SILVA (error-corrected, genus-level) — because no single method is sufficient for this data type; see run/ednanopore-run/SKILL.md's case study. Reference-database retrieval (RefSeq Targeted Loci, SILVA/DECIPHER pre-trained IdTaxa, Kraken2 16S indexes) is DELEGATED to the biodb-fetch dependency skill, whose scripts/marker_refs.py + manifest.tsv contract own download execution, md5, retries and license gating; this skill keeps only catalog curation and local index-building. Use when the user has ONT/MinION/PromethION 16S amplicon reads — nf-edna's Illumina-oriented 16S preset (NGmerge PE-merge + VSEARCH UNOISE3 + IdTaxa) is not appropriate for single-read, higher-error ONT data. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (consensus-method outputs only, downstream).
-version: 0.4.0
+description: End-to-end agent orchestration of the ednanopore manual (agent-driven, no Nextflow) pipeline for Nanopore-sequenced eDNA metabarcoding, FIRST-CLASS MULTI-MARKER since v0.5.0 — 16S (Bacteria/Archaea), 18S (full-length or V9/Euka02-class), 12S (MiFish-class), COI, and ITS, each with a bundled marker preset carrying validated length-window defaults, kingdoms, and the correct biodb-fetch retrieval keys. Runs three complementary classification methods by default — readbased+minimap2/LCA (species-level, every read counted), readbased+IdTaxa/SILVA (broader reference, genus-level ceiling), and consensus+medaka-polish+classification (error-corrected) — because no single method is sufficient for this data type; see run/ednanopore-run/SKILL.md's case study. References are DELEGATED to the biodb-fetch dependency skill (its scripts/marker_refs.py + manifest.tsv contract own download execution, md5, retries and license gating); this skill keeps catalog curation and local index-building; 12S/COI/ITS default to minimap2-LCA with custom-trained IdTaxa as opt-in. Use when the user has ONT/MinION/PromethION amplicon reads of any bundled marker — ednanopore's ONT-native flow differs from nf-edna's Illumina-oriented NGmerge PE-merge + VSEARCH UNOISE3 chain. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (consensus-method outputs of GBIF-publishable markers only, downstream).
+version: 0.5.0
 updated: "2026-10-06"
 triggers:
   - "Nanopore 16S metabarcoding"
@@ -66,22 +66,30 @@ requires:
 
 ## When to Use This Skill
 
-- You have **Nanopore-sequenced** (ONT/MinION/PromethION) 16S rRNA
-  amplicon reads — partial-region (~350-600bp) or near/full-length
-  (~1500bp) — and want taxonomy/abundance out of them, cross-validated
+- You have **Nanopore-sequenced** (ONT/MinION/PromethION) amplicon reads of a
+  bundled marker — **16S** (partial ~350-600bp or near/full-length 1400-1850bp,
+  Bacteria/Archaea), **18S** (full-length or V9/Euka02-class short fragments,
+  Eukaryota), **12S** (MiFish-class, Vertebrata), **COI** (Metazoa), or **ITS**
+  (Fungi) — and want taxonomy/abundance out of them, cross-validated
   across methods rather than trusting a single classifier+reference
   combination.
+- (Since v0.5.0) Your marker is *not* in that list but you have primers + a
+  length window: intake's SP2b scaffolds a new per-marker preset from the
+  nearest existing one — no code changes needed.
 
 **Do NOT use this skill** if:
 
-- Your reads are **Illumina** short reads — use `nf-edna`'s `16s.json`
-  preset instead; its NGmerge/UNOISE3/IdTaxa chain is calibrated for
-  that error profile.
+- Your reads are **Illumina** short reads — use `nf-edna`'s marker presets
+  instead; its NGmerge/UNOISE3/IdTaxa chain is calibrated for that error
+  profile.
 - You have **raw reads that have not been QC-trimmed** in the adapter
   sense (basecalled but un-demultiplexed, etc.) — demultiplex first;
   this skill's QC stage handles primer trimming + quality/length
   filtering, not basecalling or demultiplexing.
-- Your marker is not 16S — this skill is 16S-only in v0.2.0.
+- (Pre-v0.5.0 behavior was 2S-only; multi-marker support is new — for
+  12S/COI/ITS the IdTaxa-based methods need a custom-trained model
+  (chain `nf-edna/idtaxa-training`); expect minimap2-LCA to be the
+  default classifier for those markers, per the marker presets.)
 
 ## 0. Orchestrator — detect stage, route to the right sub-skill
 
@@ -147,20 +155,28 @@ Three phases:
   cell chemistry and basecaller mode (e.g.
   `r1041_e82_400bps_sup_v5.0.0`); there is no universal default.
 
-## Marker preset (`runners/manual-runner/defaults/`)
+## Marker presets (`runners/manual-runner/defaults/`)
 
-| Preset | Marker | Length range (run-time override) | Kingdoms |
-| --- | --- | --- | --- |
-| `16s-nanopore.json` | 16S | `qc.min_length`/`qc.max_length`, 450-1600bp default | Bacteria, Archaea |
+One JSON preset per marker — consumed by intake's SP2 (marker normalization +
+preset discovery, SP2b for unlisted markers). Full field conventions in
+`runners/manual-runner/defaults/README.md`.
 
-Partial (~600bp) and full-length (~1500bp) 16S are both "16S" — set
-`min_length`/`max_length` at intake per run, not via different marker
-files. The preset also carries validated defaults for each of the three
-methods (`readbased_minimap2`, `readbased_idtaxa`, `consensus` keys) —
-see `runners/manual-runner/defaults/16s-nanopore.json` and
-`CHANGELOG.md` for why each value was chosen (e.g.
-`cluster_min_identity: 0.95`, `qc.min_length_trimmed: 350` as a value
-distinct from the raw-read floor, `idtaxa_threshold: 60`).
+| Preset | Marker | Length window (run-time override) | Kingdoms | Reference retrieval (biodb-fetch key) |
+| --- | --- | --- | --- | --- |
+| `16s-nanopore.json` | 16S | 450-1600 bp; full-length runs 1400-1700 | Bacteria, Archaea | `url`/`silva`/`decipher` (unchanged since v0.2.0) |
+| `18s-full.json` | 18S full-length | 1700-1850 bp | Eukaryota | `silva`/`pr2`; IdTaxa = stock SILVA SSU model |
+| `18s-v9.json` | 18S-V9 (Euka02-class) | 120-200 bp | Eukaryota | `silva`/`pr2`; IdTaxa = stock SILVA SSU model |
+| `12s.json` | 12S (MiFish-class) | 180-260 bp | Vertebrata | `mitohelper`; IdTaxa opt-in only (custom training) |
+| `coi.json` | COI | 260-450 bp | Metazoa | `midori2` (CC-BY-NC gated) or `bold`; IdTaxa opt-in only |
+| `its.json` | ITS | set at intake (variable) | Fungi | `unite`; IdTaxa opt-in only |
+
+The preset carries validated defaults for each of the three methods
+(`readbased_minimap2`, `readbased_idtaxa`, `consensus` keys) — the 16S values
+are inherited from v0.2.0's battle-tested tuning (e.g. `cluster_min_identity:
+0.95`, `qc.min_length_trimmed: 350`); 12S/COI/ITS set `consensus.classifier:
+"minimap2"` because no stock IdTaxa model exists for them. Primer sequences
+are deliberately empty in every preset — they are a per-run intake input
+(SP2/SP1), confirmed against the scientist's protocol.
 
 ## Output artifacts
 

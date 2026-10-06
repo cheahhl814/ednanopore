@@ -1,7 +1,7 @@
 ---
 name: ednanopore-run
-description: "Execute the ednanopore manual (agent-driven) pipeline: QC, then BOTH readbased classification methods (minimap2/RefSeq and IdTaxa/SILVA) plus the consensus+IdTaxa/SILVA method, by default, per CHANGELOG.md's conclusion that no single approach is sufficient for Nanopore 16S eDNA. No Nextflow — every stage is a direct shell invocation of a script under runners/manual-runner/bin/, run via the Bash tool and shown to the scientist before execution. Monitors progress, updates pipeline_state.json after each stage. Has explicit ask-user stop points (SP1-SP5) that fire only when evidence is ambiguous. Triggers: 'run Nanopore 16S pipeline', 'run ednanopore', 'continue Nanopore run', 'Nanopore QC stage', 'Nanopore classify', 'Nanopore consensus clustering'."
-version: 0.4.0
+description: "Execute the ednanopore manual (agent-driven) pipeline: QC, then the classification methods in scope from the marker preset — readbased_minimap2 (default for every marker), readbased_idtaxa (default for 16S/18S via the stock SILVA SSU model; for 12S/COI/ITS it requires a custom-trained model and is opt-in), plus consensus polishing + classification by default — per CHANGELOG.md's conclusion that no single approach is sufficient for Nanopore eDNA. No Nextflow — every stage is a direct shell invocation of a script under runners/manual-runner/bin/, run via the Bash tool and shown to the scientist before execution. Monitors progress, updates pipeline_state.json after each stage. Has explicit ask-user stop points (SP1-SP5) that fire only when evidence is ambiguous. Triggers: 'run Nanopore 16S pipeline', 'run ednanopore', 'run Nanopore 18S/12S/COI/ITS pipeline', 'continue Nanopore run', 'Nanopore QC stage', 'Nanopore classify', 'Nanopore consensus clustering'.""
+version: 0.5.0
 updated: "2026-10-06"
 triggers:
   - "run Nanopore 16S pipeline"
@@ -143,9 +143,10 @@ Before running any stage, **read `pipeline_state.json.verdict`**. If
 
 | Trigger | Action |
 | --- | --- |
-| `pipeline` field is not `ednanopore`, or `marker` is not `16S` | Ask: "State at `<path>` doesn't look like ednanopore intake. (A) wrong `run_id` — give me the right one, (B) typo in the state file — I'll fix it, (C) abort" |
+| `pipeline` field is not `ednanopore` | Ask: "State at `<path>` doesn't look like ednanopore intake. (A) wrong `run_id` — give me the right one, (B) typo in the state file — I'll fix it, (C) abort" |
+| `marker` has no matching preset under `runners/manual-runner/defaults/` | Ask: "State file names marker `<marker>` but there's no preset for it (it predates v0.5.0, or a custom preset was deleted). (A) scaffold the preset now (SP2b path), (B) fix the marker field, (C) abort" |
 
-**Auto-pick when**: `pipeline == "ednanopore"` AND `marker == "16S"`.
+**Auto-pick when**: `pipeline == "ednanopore"` AND a preset resolves for `marker` (any bundled marker since v0.5.0).
 
 ### SP3 — Failure-handling choice
 
