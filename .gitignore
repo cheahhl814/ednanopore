@@ -1,27 +1,40 @@
-# Nextflow work directories
-work/
-.nextflow/
-.nextflow.log*
-results/
-
-# Python bytecode
+# Python artifacts
 __pycache__/
 *.pyc
-*.pyo
+*.egg-info/
 
-# OS files
+# OS / editor
 .DS_Store
-Thumbs.db
-
-# Editor / IDE
 *.swp
-*.swo
 *~
-.idea/
-.vscode/
 
-# Pixi lock files (keep toml, skip lock)
-# env/*/pixi.lock  # keep lock for reproducibility
+# Pixi env cache + root lockfile (resolved on first run, regenerated per machine)
+/.pixi/
+pixi.lock
 
-# Reference database downloads (large, runtime)
+# Per-run working outputs — must not be committed
+work/
+results/
+.nextflow/
+.nextflow.log*
+
+# Skill-specific large assets: reference DBs and sequence data (runtime, re-fetchable)
 assets/
+*.fq.gz
+
+# Docs-corpus fetch cache (regenerable via skill-update-check)
+docs-corpus/.fingerprints
+
+# biodb-fetch retrieval store (runtime data, never committed)
+store/
+
+# Meta-skill run artifacts (per-run, regenerable by re-running bioinfo-skill-creator)
+# — NOT part of the skill's operational deliverable; never commit them to GitHub.
+# params.json IS tracked (it is the render input that makes a re-run reproducible).
+skill-built.md
+battle-test-report.md
+battle-test_evidence.txt
+preflight.md
+preflight_evidence.txt
+tool_search_results.txt
+tool-inventory.json

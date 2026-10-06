@@ -1,7 +1,7 @@
 ---
 name: nf-edna-nanopore
-description: End-to-end agent orchestration of the nf-edna-nanopore manual (agent-driven, no Nextflow) pipeline for Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding (partial ~350-600bp or full-length ~1500bp amplicons). Runs three complementary classification methods by default — readbased+minimap2/RefSeq (species-level, every read counted), readbased+IdTaxa/SILVA (broader reference, genus-level ceiling), and consensus+medaka-polish+IdTaxa/SILVA (error-corrected, genus-level) — because no single method is sufficient for this data type; see run/edna-nanopore-run/SKILL.md's case study. Use when the user has ONT/MinION/PromethION 16S amplicon reads — nf-edna's Illumina-oriented 16S preset (NGmerge PE-merge + VSEARCH UNOISE3 + IdTaxa) is not appropriate for single-read, higher-error ONT data. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (consensus-method outputs only, downstream).
-version: 0.2.0
+description: End-to-end agent orchestration of the nf-edna-nanopore manual (agent-driven, no Nextflow) pipeline for Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding (partial ~350-600bp or full-length ~1500bp amplicons). Runs three complementary classification methods by default — readbased+minimap2/RefSeq (species-level, every read counted), readbased+IdTaxa/SILVA (broader reference, genus-level ceiling), and consensus+medaka-polish+IdTaxa/SILVA (error-corrected, genus-level) — because no single method is sufficient for this data type; see run/edna-nanopore-run/SKILL.md's case study. Reference-database retrieval (RefSeq Targeted Loci, SILVA/DECIPHER pre-trained IdTaxa, Kraken2 16S indexes) is DELEGATED to the biodb-fetch dependency skill, whose scripts/marker_refs.py + manifest.tsv contract own download execution, md5, retries and license gating; this skill keeps only catalog curation and local index-building. Use when the user has ONT/MinION/PromethION 16S amplicon reads — nf-edna's Illumina-oriented 16S preset (NGmerge PE-merge + VSEARCH UNOISE3 + IdTaxa) is not appropriate for single-read, higher-error ONT data. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (consensus-method outputs only, downstream).
+version: 0.3.0
 updated: "2026-10-06"
 triggers:
   - "Nanopore 16S metabarcoding"
@@ -11,17 +11,28 @@ triggers:
   - "full-length 16S nanopore"
   - "nf-edna-nanopore"
 requires:
-  - "Pixi (curl -fsSL https://pixi.sh/install.sh | bash) — manages per-stage tool envs under runners/manual-runner/env/"
+  - "Pixi (curl -fsSL https://pixi.sh/install.sh | bash) — single root pixi.toml with per-stage [feature.<env>] entries; run tools with `pixi run --manifest-path <skill-root>/pixi.toml -e <env>`"
+  - "biodb-fetch skill (github.com/cheahhl814/biodb-fetch, deployed as a sibling skill) — dependency skill; owns reference-database download execution under the manifest.tsv contract (contract_version is verified by this skill's reference-db sub-skill)"
   - "git"
 ---
 
 # Meta-Skill: nf-edna-nanopore
 
-> **v0.2.0.** Nextflow removed entirely — this skill is now **manual
-> (agent-driven)**: an agent invokes `runners/manual-runner/bin/run_*.sh`
-> scripts directly via the Bash tool, one stage at a time, confirming each
-> command with the scientist before running it. This mirrors how every
-> validated run of this pipeline actually ended up being executed in
+> **v0.3.0.** Structural rebuild on the bioinfo-skill-creator v1.4.0 standard
+> (single root `pixi.toml` with per-stage `[feature.<env>]`/`[environments]` entries,
+> `bin/skill-update-check.py` self-update check, `docs-corpus/`, deterministic
+> `test-data/` fixtures, run-artifact gitignore) and **biodb-fetch wired in as the
+> dependent database-retrieval skill**: `reference-db/` curates *which* reference
+> (URL, version, license) and builds the MMI/tax-lookup/IdTaxa artifacts locally,
+> while `biodb-fetch` (github.com/cheahhl814/biodb-fetch) *executes every download*
+> under its manifest.tsv contract (`scripts/marker_refs.py`: `unite`/`bold`/`mitohelper`/
+> `silva`/`pr2`/`midori2`/`decipher`/`url` retrieval keys with md5 + license gating).
+>
+> **Pipeline behavior is unchanged from v0.2.0** (still agent-manual, still three
+> classification methods by default, still no Nextflow): an agent invokes
+> `runners/manual-runner/bin/run_*.sh` scripts directly via the Bash tool, one stage
+> at a time, confirming each command with the scientist before running it. This mirrors
+> how every validated run of this pipeline actually ended up being executed in
 > practice (see `CHANGELOG.md`'s "Bugs 28-30" framing note: 27 bugs
 > deep into the Nextflow orchestrator, retries moved to direct shell
 > invocation of the same underlying tool scripts and never looked back).

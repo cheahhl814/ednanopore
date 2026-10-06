@@ -59,22 +59,22 @@ process_sample() {
   mkdir -p "$sdir_selfmap" "$sdir_chimera" "$sdir_clusters" "$sdir_consensus"
 
   echo "[$sample] selfmap..."
-  pixi run --manifest-path "$PIPE/env/cluster/pixi.toml" \
+  pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
     minimap2 -a -x map-ont -t "$THREADS" "$reads" "$reads" 2>"$sdir_selfmap/minimap2_sam.log" \
-    | pixi run --manifest-path "$PIPE/env/cluster/pixi.toml" \
+    | pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
       samtools view -b -@ "$THREADS" -o "$sdir_selfmap/${sample}.self.bam" - 2>>"$sdir_selfmap/minimap2_sam.log"
-  pixi run --manifest-path "$PIPE/env/cluster/pixi.toml" \
+  pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
     minimap2 -x map-ont -t "$THREADS" "$reads" "$reads" > "$sdir_selfmap/${sample}.self.paf" 2>"$sdir_selfmap/minimap2_paf.log"
 
   echo "[$sample] chimera_filter (yacrd)..."
-  pixi run --manifest-path "$PIPE/env/cluster/pixi.toml" \
+  pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
     yacrd -i "$sdir_selfmap/${sample}.self.paf" -o "$sdir_chimera/${sample}.yacrd.yacrd" \
     -c 4 -n "$YACRD_MIN_COV" \
     scrubb -i "$reads" -o "$sdir_chimera/${sample}.good.fastq.gz" \
     > "$sdir_chimera/yacrd.log" 2>&1
 
   echo "[$sample] cluster_graph (identity=$CLUSTER_MIN_ID)..."
-  pixi run --manifest-path "$PIPE/env/cluster/pixi.toml" \
+  pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
     python "$PIPE/bin/cluster_graph.py" \
     "$sdir_selfmap/${sample}.self.paf" "$sdir_chimera/${sample}.good.fastq.gz" \
     "$sdir_clusters/${sample}.clusters.tsv" "$sdir_clusters/cluster_dir" \
@@ -88,7 +88,7 @@ process_sample() {
     > "$sdir_consensus/medaka_polish.log" 2>&1
 
   echo "[$sample] biom2tsv..."
-  pixi run --manifest-path "$PIPE/env/cluster/pixi.toml" \
+  pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
     biom convert -i "$sdir_consensus/${sample}.table.biom" -o "$sdir_consensus/${sample}.table.tsv" --to-tsv \
     2>"$sdir_consensus/biom_convert.log" \
     || printf '# Constructed from biom file\n#OTU ID\t%s\n' "$sample" > "$sdir_consensus/${sample}.table.tsv"
@@ -111,7 +111,7 @@ for sample in "${SAMPLES[@]}"; do
   FASTAS+=("$OUT_DIR/cluster/consensus/$sample/${sample}.sequences.fasta")
 done
 
-pixi run --manifest-path "$PIPE/env/classification/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e classification \
   Rscript "$PIPE/bin/merge_tables.R" \
   --input_files "${TABLES[@]}" --output_table "$OUT_DIR/asv_table/feature-table.tsv" \
   2>&1 | tee "$OUT_DIR/asv_table/merge_tables.log"
@@ -123,7 +123,7 @@ sed '/^>/s/:/_/g' "$OUT_DIR/asv_table/rep-seqs.fna" > "$OUT_DIR/asv_table/rep-se
 echo "merged: $(grep -c '>' "$OUT_DIR/asv_table/rep-seqs_renamed.fna") sequences, $(wc -l < "$OUT_DIR/asv_table/feature-table_renamed.tsv") table rows"
 
 echo "=== decontam ==="
-pixi run --manifest-path "$PIPE/env/decontam/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e decontam \
   julia "$PIPE/bin/decontam.jl" \
   --feature_table "$OUT_DIR/asv_table/feature-table_renamed.tsv" \
   --metadata "$METADATA" \
@@ -136,7 +136,7 @@ pixi run --manifest-path "$PIPE/env/decontam/pixi.toml" \
   2>&1 | tee "$OUT_DIR/asv_table/decontam.log"
 
 echo "=== filter_table ==="
-pixi run --manifest-path "$PIPE/env/decontam/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e decontam \
   julia "$PIPE/bin/filter_table.jl" \
   --feature_table "$OUT_DIR/asv_table/decontam_asv_table.tsv" \
   --rep_seqs "$OUT_DIR/asv_table/decontam_rep_seqs.fna" \
@@ -149,14 +149,14 @@ pixi run --manifest-path "$PIPE/env/decontam/pixi.toml" \
 echo "filtered: $(grep -c '>' "$OUT_DIR/asv_table/filtered_rep_seqs.fna") sequences, $(wc -l < "$OUT_DIR/asv_table/filtered_asv_table.tsv") table rows"
 
 echo "=== idtaxa classification ==="
-pixi run --manifest-path "$PIPE/env/classification/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e classification \
   Rscript "$PIPE/bin/idtaxa_rds.R" \
   --query_sequences "$OUT_DIR/asv_table/filtered_rep_seqs.fna" --idtaxa_model "$IDTAXA_MODEL" \
   --output_classification "$OUT_DIR/taxonomy/idtaxa_classification.tsv" \
   --output_confidence "$OUT_DIR/taxonomy/idtaxa_confidence.tsv" \
   2>&1 | tee "$OUT_DIR/taxonomy/idtaxa_classify.log"
 
-pixi run --manifest-path "$PIPE/env/decontam/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e decontam \
   julia "$PIPE/bin/filter_idtaxa_by_confidence.jl" \
   --classification_file "$OUT_DIR/taxonomy/idtaxa_classification.tsv" \
   --confidence_file "$OUT_DIR/taxonomy/idtaxa_confidence.tsv" \
@@ -168,7 +168,7 @@ echo "classified: $(wc -l < "$OUT_DIR/taxonomy/idtaxa_classification_confident.t
 
 echo "=== agglomerate ==="
 mkdir -p "$OUT_DIR/taxonomy/agglomerated_data"
-pixi run --manifest-path "$PIPE/env/classification/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e classification \
   Rscript "$PIPE/bin/agglomerate_data.R" \
   --asv_counts_file "$OUT_DIR/asv_table/filtered_asv_table.tsv" \
   --taxonomy_file "$OUT_DIR/taxonomy/idtaxa_classification_confident.tsv" \
@@ -178,7 +178,7 @@ pixi run --manifest-path "$PIPE/env/classification/pixi.toml" \
 
 tail -n +2 "$OUT_DIR/taxonomy/agglomerated_data/asv_counts.tsv" | awk '{print $1}' > "$OUT_DIR/asv_table/asv_ids_to_keep.txt"
 sed 's/;size=[0-9]*//' "$OUT_DIR/asv_table/filtered_rep_seqs.fna" > "$OUT_DIR/asv_table/rep_seqs_clean.fna"
-pixi run --manifest-path "$PIPE/env/classification/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e classification \
   seqtk subseq "$OUT_DIR/asv_table/rep_seqs_clean.fna" "$OUT_DIR/asv_table/asv_ids_to_keep.txt" > "$OUT_DIR/taxonomy/filtered_asvs.fna"
 
 echo "=== consensus+idtaxa complete: $OUT_DIR ==="

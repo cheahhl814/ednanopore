@@ -30,7 +30,7 @@ MIN_QUAL=${9:-10}
 THREADS=${10:-4}
 
 PIPE=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-QC_ENV="$PIPE/env/qc/pixi.toml"
+ROOT_TOML="$PIPE/../../pixi.toml"
 
 rev_primer_rc=$(echo "$PRIMERS_REV" | tr 'ACGTacgt' 'TGCAtgca' | rev)
 
@@ -40,21 +40,21 @@ run_one() {
   mkdir -p "$sdir"
 
   echo "[$sample] chopper..."
-  pixi run --manifest-path "$QC_ENV" \
+  pixi run --manifest-path "$ROOT_TOML" -e qc \
     chopper -i "$INPUT_DIR/$infile" \
     --minlength "$MIN_LENGTH" --maxlength "$MAX_LENGTH" \
     --quality "$MIN_QUAL" --threads "$THREADS" \
     2>"$sdir/chopper.log" | gzip > "$sdir/${sample}.chopped.fastq.gz"
 
   echo "[$sample] cutadapt fwd (--revcomp)..."
-  pixi run --manifest-path "$QC_ENV" \
+  pixi run --manifest-path "$ROOT_TOML" -e qc \
     cutadapt --error-rate 0.1 --times 1 --overlap 3 --revcomp \
     -j "$THREADS" -g "$PRIMERS_FWD" --discard-untrimmed \
     -o "$sdir/${sample}.fwd_trimmed.fastq.gz" "$sdir/${sample}.chopped.fastq.gz" \
     > "$sdir/cutadapt_fwd.log" 2>&1
 
   echo "[$sample] cutadapt rev..."
-  pixi run --manifest-path "$QC_ENV" \
+  pixi run --manifest-path "$ROOT_TOML" -e qc \
     cutadapt --error-rate 0.1 --times 1 --overlap 3 \
     --minimum-length "$MIN_LENGTH_TRIMMED" \
     -j "$THREADS" -a "$rev_primer_rc" \

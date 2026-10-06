@@ -1,8 +1,8 @@
 ---
 name: reference-db
-description: Curated catalog of reference-database sources for nf-edna-nanopore's 16S classifiers — NCBI RefSeq Targeted Loci (minimap2 MMI + taxonomy lookup TSV, the default `minimap2` classifier), pre-built Kraken2 16S indexes (the `kraken2` alt classifier), and SILVA DECIPHER IdTaxa (the opt-in `idtaxa` classifier, reused unmodified from nf-edna). Mirrors the BettaMt ask-user-stop-points pattern used by nf-edna's reference-db skill, adapted for Nanopore's minimap2/Kraken2-first classifier stack instead of nf-edna's DECIPHER-only one. Use when the user asks to "get a 16S reference for nf-edna-nanopore", "download the minimap2 16S index", "get a Kraken2 16S database", "where do I get the reference for the Nanopore pipeline", or "build the tax_lookup TSV".
-version: 0.1.0
-updated: "2026-08-19"
+description: Curated catalog of reference-database sources for nf-edna-nanopore's 16S classifiers — NCBI RefSeq Targeted Loci (minimap2 MMI + taxonomy lookup TSV, the default `minimap2` classifier), pre-built Kraken2 16S indexes (the `kraken2` alt classifier), and SILVA DECIPHER IdTaxa (the opt-in `idtaxa` classifier, reused unmodified from nf-edna). Download EXECUTION is delegated to the biodb-fetch dependency skill (github.com/cheahhl814/biodb-fetch — scripts/marker_refs.py + manifest.tsv contract); this sub-skill keeps curation (which URL/version/license), local index building (minimap2 -d, tax_lookup join, IdTaxa model placement), and verdict gating. Mirrors the BettaMt ask-user-stop-points pattern used by nf-edna's reference-db skill, adapted for Nanopore's minimap2/Kraken2-first classifier stack instead of nf-edna's DECIPHER-only one. Use when the user asks to "get a 16S reference for nf-edna-nanopore", "download the minimap2 16S index", "get a Kraken2 16S database", "where do I get the reference for the Nanopore pipeline", or "build the tax_lookup TSV".
+version: 0.3.0
+updated: "2026-10-06"
 triggers:
   - "reference for nf-edna-nanopore"
   - "download 16S minimap2 index"
@@ -12,15 +12,17 @@ triggers:
   - "where do I get the Nanopore 16S reference"
   - "reference-db nanopore"
 requires:
-  - "Internet access (for ftp.ncbi.nlm.nih.gov, ont-open-data S3, genome-idx.s3.amazonaws.com, drive.google.com for the opt-in IdTaxa mode)"
+  - "biodb-fetch skill, deployed as a sibling skill (its pixi env provides the fetch runtime: requests, gdown, biopython, ncbi-datasets-cli). Every download in the run sub-skill goes through its `scripts/marker_refs.py` / `scripts/ncbi_fetch.py` under the manifest.tsv contract — verify `contract_version` before consuming any fetch output"
+  - "Internet access (via biodb-fetch: ftp.ncbi.nlm.nih.gov, ont-open-data S3, genome-idx.s3.amazonaws.com, drive.google.com for the opt-in IdTaxa mode)"
   - "Disk space: 16S_refseq FASTA + MMI ~50 MB; Kraken2 16S DB 9 MB (ncbi_16s_18s) to 300 MB (SILVA-based); opt-in IdTaxa SILVA file ~300 MB"
-  - "minimap2 (for building the MMI from FASTA)"
+  - "minimap2, from this skill's root pixi.toml `cluster` env (for building the MMI from FASTA)"
   - "Optional: pixi env with DECIPHER (only for the opt-in idtaxa classifier mode)"
 ---
 
 # Sub-Skill: reference-db (nf-edna-nanopore)
 
-> **v0.1.0.** Adapted from `nf-edna/reference-db` (v1.1.4). That original catalog is DECIPHER/IdTaxa-only — this pipeline's *default* classifier is `minimap2` (LCA against a reference MMI), with `kraken2` as a fast alt and `idtaxa` as an opt-in third mode (Variant A / consensus only, reusing nf-edna's SILVA catalog entry and `idtaxa_rds.R` unchanged). This SKILL.md therefore carries three catalog sections instead of one, structured the same way (canonical source → download → build/validate → license/cadence).
+> **v0.3.0.** Adapted from `nf-edna/reference-db` (v1.1.4). That original catalog is DECIPHER/IdTaxa-only — this pipeline's *default* classifier is `minimap2` (LCA against a reference MMI), with `kraken2` as a fast alt and `idtaxa` as an opt-in third mode. This SKILL.md carries three catalog sections instead of one, structured the same way (canonical source → download → build/validate → license/cadence).
+> **v0.3.0 change:** download execution is now DELEGATED to the **biodb-fetch** dependency skill (github.com/cheahhl814/biodb-fetch) — this sub-skill remains the curation + local-build layer. See §0.6.
 >
 > **This SKILL.md is a router + catalog.** It does not duplicate download logic from the sub-skills. Its job is to answer: *which classifier mode is the user targeting, and what reference does that mode need?*
 
@@ -62,6 +64,41 @@ By convention, evidence/handoff files go to a timestamped directory at the proje
 
 **Auto-pick when**: `pipeline_state.json` already has `params.classifier` set — use that value's section without asking.
 
+## 0.6 biodb-fetch delegation (v0.3.0)
+
+Following biodb-fetch's division of responsibilities: **curation stays here** (which URL / which version / which license — the three catalog sections above), **download execution, md5, retries, manifest rows and Google-Drive-via-gdown go to biodb-fetch's `run/markers-reference` module** (`scripts/marker_refs.py`), and **NCBI record/gene fetches go to its `scripts/ncbi_fetch.py`/`ncbi_datasets.py`**.
+
+```bash
+# Resolve biodb-fetch's install root (sibling of this skill); set BIOFETCH accordingly:
+#   BIOFETCH=~/.agents/skills/biodb-fetch        # deployed skill dir
+BIOFETCH="<path-to-biodb-fetch>"
+
+# RefSeq Targeted Loci FASTA (minimap2 mode, curated URLs in §1) — generic-url fetch,
+# manifest rows land in <outdir>/manifest.tsv with md5 + contract_version:
+pixi run --manifest-path "$BIOFETCH/pixi.toml" python3 scripts/marker_refs.py url \
+    --url https://ftp.ncbi.nlm.nih.gov/refseq/TargetedLoci/Bacteria/bacteria.16SrRNA.fna.gz \
+    --source ncbi-refseq-targeted-loci
+
+# EPI2ME ref2taxid + taxdump bundle (kraken2/minimap2 modes) — same `url` key:
+pixi run --manifest-path "$BIOFETCH/pixi.toml" python3 scripts/marker_refs.py url \
+    --url https://ont-open-data.s3.amazonaws.com/workflow-databases/wf-metagenomics-dbs/ncbi_16s_18s/ref2taxid.targloci.tsv \
+    --source ont-epi2me-ncbi-16s-18s
+
+# Pre-built Kraken2 16S indexes (kraken2 mode, §2):
+pixi run --manifest-path "$BIOFETCH/pixi.toml" python3 scripts/marker_refs.py url \
+    --url https://genome-idx.s3.amazonaws.com/kraken/16S_Silva138_20200326.tgz \
+    --source kraken2-16s-silva138
+
+# SILVA DECIPHER pre-trained IdTaxa model (idtaxa mode, §3) — Google Drive, gdown
+# is INSIDE biodb-fetch's env (no venv hack, no PEP-668 workaround):
+pixi run --manifest-path "$BIOFETCH/pixi.toml" python3 scripts/marker_refs.py decipher \
+    --drive-id 1w3wdSCpSihntWkbP_zvXz7r3s-tNB8DV
+```
+
+**Local steps that stay in this skill** (not delegated): `minimap2 -d` MMI build, the `ref2taxid`↔`new_taxdump` join into `tax_lookup.tsv`, `bin/idtaxa_rds.R` placement checks, and the Kraken2 archive extraction/verify. biodb-fetch's output manifest (`contract_version`, md5, bytes, retrieval_date) must be copied/registered next to the consumed files; verify `contract_version` matches the value in its `scripts/dbaccess_common.py` before declaring `run_summary.json`.
+
+If `biodb-fetch` is not deployed as a sibling skill, STOP and tell the user to deploy it (`git clone https://github.com/cheahhl814/biodb-fetch`, then pixi-resolve its `pixi.toml`) — do NOT fall back to raw `curl`/manual `gdown`; that path predates v0.3.0 and drops the manifest contract.
+
 ## 1. NCBI RefSeq Targeted Loci → minimap2 MMI + tax_lookup TSV (default: `classifier: "minimap2"`)
 
 See the full section: [`CATALOG_SECTION_TARGETED_LOCI.md`](CATALOG_SECTION_TARGETED_LOCI.md) — reproduced inline below for the catalog view.
@@ -99,12 +136,12 @@ Identical to nf-edna's `reference-db` §1.1 first row — reused unchanged, sinc
 |---|---|---|---|---|
 | SILVA SSU r138.2 (DECIPHER pre-trained, modified) | `https://drive.google.com/file/d/1w3wdSCpSihntWkbP_zvXz7r3s-tNB8DV/view?usp=sharing` | 299 MB | RDX3 (XZ-compressed) | SILVA dual-license |
 
-Download via `gdown` (not `curl` — see nf-edna's `run/reference-db-run/SKILL.md` §2 for why). Set `params.idtaxa_model` to the downloaded path. **Not applicable to Variant B (read_based)** — idtaxa needs polished consensus sequences, not raw noisy reads.
+Download via biodb-fetch's `decipher` key (§0.6 — gdown runs inside its env). Set `params.idtaxa_model` to the downloaded path. **Not applicable to Variant B (read_based)** — idtaxa needs polished consensus sequences, not raw noisy reads.
 
 ## 4. Where downloaded files go
 
 ```
-$ASSETS_DIR/                              # e.g. /home/user/data/nf-edna-nanopore/assets/
+$ASSETS_DIR/                              # e.g. your project data area/nf-edna-nanopore/assets/
 ├── 16s_minimap2/
 │   ├── 16S_refseq.mmi                      # minimap2 index (default classifier)
 │   └── tax_lookup.tsv                      # accession -> lineage TSV
@@ -145,9 +182,14 @@ invoke_skill run/reference-db-run
 
 ## 7. Where this fits in the wider skill graph
 
-```
+```mermaid-like
                  ┌──────────────────────┐
-                 │   reference-db        │  (this skill — catalog + download/build)
+                 │   biodb-fetch         │  (dependency skill — download execution, manifest.tsv)
+                 └───────────┬───────────┘
+                              │ fetched FASTA/taxdump/Kraken2 tar / SILVA .rdata
+                              ▼
+                 ┌──────────────────────┐
+                 │   reference-db        │  (this skill — curation + local index build)
                  │   (nf-edna-nanopore)  │
                  └───────────┬───────────┘
                               │ MMI+TSV (default) / Kraken2 dir (alt) / SILVA .rdata (opt-in)
@@ -162,7 +204,7 @@ invoke_skill run/reference-db-run
                  └────────────────────────┘
 ```
 
-- **Upstream**: nothing (discovery + retrieval skill).
+- **Upstream**: `biodb-fetch` (download execution, manifest.tsv contract) — deploy as a sibling skill before any reference fetch (see §0.6).
 - **Downstream**: `nf-edna-nanopore` consumes the reference for classification (either variant).
 - **Parallel**: `nf-edna/idtaxa-training` is invoked only if the user wants a custom-trained IdTaxa model instead of the stock SILVA one.
 

@@ -50,17 +50,17 @@ classify_one() {
 
   if [ "$SUBSAMPLE_N" -gt 0 ]; then
     echo "[$sample] subsampling (n=$SUBSAMPLE_N, seed=$SUBSAMPLE_SEED) + converting to fasta..."
-    pixi run --manifest-path "$PIPE/env/qc/pixi.toml" bash -c "
+    pixi run --manifest-path "$PIPE/../../pixi.toml" -e qc bash -c "
       seqkit sample -s $SUBSAMPLE_SEED -n $SUBSAMPLE_N '$fastq' | seqkit fq2fa -o '$fasta'
     " > "$TAX/${sample}.fq2fa.log" 2>&1
   else
     echo "[$sample] converting full read set to fasta (no subsampling)..."
-    pixi run --manifest-path "$PIPE/env/qc/pixi.toml" \
+    pixi run --manifest-path "$PIPE/../../pixi.toml" -e qc \
       seqkit fq2fa "$fastq" -o "$fasta" > "$TAX/${sample}.fq2fa.log" 2>&1
   fi
 
   echo "[$sample] IdTaxa classification ($(grep -c '^>' "$fasta") reads)..."
-  pixi run --manifest-path "$PIPE/env/classification/pixi.toml" \
+  pixi run --manifest-path "$PIPE/../../pixi.toml" -e classification \
     Rscript "$PIPE/bin/idtaxa_rds.R" \
     --query_sequences "$fasta" \
     --idtaxa_model "$IDTAXA_MODEL" \
@@ -69,7 +69,7 @@ classify_one() {
     > "$TAX/${sample}.idtaxa_classify.log" 2>&1
 
   echo "[$sample] filtering by confidence (threshold=$IDTAXA_THRESHOLD)..."
-  pixi run --manifest-path "$PIPE/env/decontam/pixi.toml" \
+  pixi run --manifest-path "$PIPE/../../pixi.toml" -e decontam \
     julia "$PIPE/bin/filter_idtaxa_by_confidence.jl" \
     --classification_file "$TAX/${sample}.idtaxa_classification.tsv" \
     --confidence_file "$TAX/${sample}.idtaxa_confidence.tsv" \
@@ -117,7 +117,7 @@ print(f"Wrote {out_path}: {len(table)} lineage rows")
 PYEOF
 
 echo "=== decontaminating ==="
-pixi run --manifest-path "$PIPE/env/decontam/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e decontam \
   julia "$PIPE/bin/decontam_by_taxon.jl" \
   --taxon_table "$ASV/taxon_abundance_table.tsv" \
   --metadata "$METADATA" \

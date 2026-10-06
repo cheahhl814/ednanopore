@@ -1,7 +1,7 @@
 ---
 name: edna-nanopore-run
 description: "Execute the nf-edna-nanopore manual (agent-driven) pipeline: QC, then BOTH readbased classification methods (minimap2/RefSeq and IdTaxa/SILVA) plus the consensus+IdTaxa/SILVA method, by default, per CHANGELOG.md's conclusion that no single approach is sufficient for Nanopore 16S eDNA. No Nextflow — every stage is a direct shell invocation of a script under runners/manual-runner/bin/, run via the Bash tool and shown to the scientist before execution. Monitors progress, updates pipeline_state.json after each stage. Has explicit ask-user stop points (SP1-SP5) that fire only when evidence is ambiguous. Triggers: 'run Nanopore 16S pipeline', 'run nf-edna-nanopore', 'continue Nanopore run', 'Nanopore QC stage', 'Nanopore classify', 'Nanopore consensus clustering'."
-version: 0.2.0
+version: 0.3.0
 updated: "2026-10-06"
 triggers:
   - "run Nanopore 16S pipeline"

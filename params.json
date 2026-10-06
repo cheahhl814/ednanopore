@@ -1,0 +1,48 @@
+{
+  "skill_name": "nf-edna-nanopore",
+  "skill_title": "Nanopore 16S eDNA Metabarcoding (agent-driven)",
+  "skill_short_description": "Agent-driven Nanopore 16S eDNA metabarcoding: three cross-classification methods (minimap2/RefSeq, IdTaxa/SILVA consensus and read-based), with reference-database retrieval delegated to biodb-fetch.",
+  "skill_description": "End-to-end agent orchestration of Nanopore-sequenced bacterial/archaeal 16S rRNA eDNA metabarcoding. Runs three classification methods by default (readbased+minimap2/RefSeq, readbased+IdTaxa/SILVA, consensus+medaka-polish+IdTaxa/SILVA); no single method is sufficient for ONT data. Reference-database retrieval (RefSeq 16S, SILVA, tax lookups, IdTaxa training seed) is delegated to the biodb-fetch dependency skill.",
+  "skill_version": "0.3.0",
+  "skill_updated": "2026-10-06",
+  "skill_triggers": ["Nanopore 16S metabarcoding", "ONT 16S amplicon", "MinION 16S eDNA", "long-read 16S classification", "full-length 16S nanopore", "nf-edna-nanopore"],
+  "run_dir": "/home/cheahhl814/claude_workspace/bioinformatics/AIx-BIO/skills/nf-edna-nanopore",
+  "skills_root": "/home/cheahhl814/claude_workspace/bioinformatics/AIx-BIO/skills",
+  "github_org": "cheahhl814",
+  "github_repo": "github.com/cheahhl814/nf-edna-nanopore",
+  "skill_shape": "multi-tool-pipeline",
+  "sub_skills": ["preflight", "run", "interpret", "reference-db"],
+  "tool_inventory": [
+    {"name": "chopper", "version": ">=0.8.0,<0.9", "role": "read quality/length filter", "status": "found", "env": "qc"},
+    {"name": "cutadapt", "version": ">=5.2,<6", "role": "primer trimming", "status": "found", "env": "qc"},
+    {"name": "nanoplot", "version": ">=1.46.0,<2", "role": "raw-read QC summary", "status": "found", "env": "qc"},
+    {"name": "minimap2", "version": ">=2.27,<3", "role": "read aligner + LCA classifier input", "status": "found", "env": "classification"},
+    {"name": "kraken2", "version": ">=2.1.3,<3", "role": "secondary classification sanity check", "status": "found", "env": "classification"},
+    {"name": "seqtk", "version": ">=1.5,<2", "role": "sequence utilities", "status": "found", "env": "classification"},
+    {"name": "medaka", "version": ">=2.0.1,<3", "role": "consensus polishing", "status": "found", "env": "cluster"},
+    {"name": "yacrd", "version": ">=0.6.2,<0.7", "role": "coverage gap detection", "status": "found", "env": "cluster"},
+    {"name": "biom-format", "version": ">=2.1.17,<3", "role": "BIOM table export", "status": "found", "env": "cluster"},
+    {"name": "samtools", "version": ">=1.19,<2", "role": "alignment utilities", "status": "found", "env": "cluster"},
+    {"name": "mafft", "version": ">=7.526,<8", "role": "multiple sequence alignment", "status": "found", "env": "diversity"},
+    {"name": "fasttree", "version": ">=2.2.0,<3", "role": "phylogenetic tree", "status": "found", "env": "diversity"},
+    {"name": "r-base", "version": "4.5.*", "role": "IdTaxa (DECIPHER)/diversity R runtime", "status": "found", "env": "classification"},
+    {"name": "julia", "version": ">=1.12.2,<1.13", "role": "decontam scripts", "status": "found", "env": "decontam"},
+    {"name": "python", "version": ">=3.11,<3.13", "role": "cluster/QC python runtime", "status": "found", "env": "qc"}
+  ],
+  "pixi_available": true,
+  "git_initialized": true,
+  "disk_gb_free": 90,
+  "target_tiers": ["large"],
+  "input_formats": ["fastq"],
+  "with_nextflow_runner": false,
+  "dependency_skills": [
+    {"name": "biodb-fetch", "version": "1.0.0", "repo": "github.com/cheahhl814/biodb-fetch", "deployed_at": "/home/cheahhl814/.agents/skills/biodb-fetch", "role": "reference-database retrieval: NCBI Entrez/Datasets for RefSeq 16S + tax lookup, SILVA/PR2 downloads for IdTaxa training and marker references"}
+  ],
+  "pixi_channels": ["conda-forge", "bioconda"],
+  "verdict": "GO",
+  "warnings": [
+    "SP2 collision (skill exists) auto-resolved to re-scaffold: user explicitly requested rebuild; remote git history preserved",
+    "SP7 nextflow-runner auto-picked NO: v0.2.0 CHANGELOG formally removed Nextflow (27 correctness bugs, production runs bypassed orchestrator); bash recipes are the only supported path"
+  ],
+  "generated": "2026-10-06T09:00:00.000Z"
+}

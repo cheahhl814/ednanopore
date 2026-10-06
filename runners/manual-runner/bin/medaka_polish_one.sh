@@ -17,7 +17,7 @@ cd "$OUTDIR"
 while IFS=$'\t' read -r cluster_id size read_ids; do
   [ -z "$cluster_id" ] && continue
 
-  pixi run --manifest-path "$PIPE/env/cluster/pixi.toml" \
+  pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
     python -c "
 import gzip
 keep = set('''${read_ids}'''.split(','))
@@ -51,7 +51,7 @@ if draft_len >= 0:
   [ -s "cluster_${cluster_id}.fastq" ] || { echo "[$SAMPLE] cluster $cluster_id has no reads, skipping" >&2; continue; }
   [ -s "cluster_${cluster_id}.draft.fasta" ] || { echo "[$SAMPLE] cluster $cluster_id has no draft, skipping" >&2; continue; }
 
-  pixi run --manifest-path "$PIPE/env/cluster/pixi.toml" \
+  pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
     medaka_consensus -i "cluster_${cluster_id}.fastq" \
     -d "cluster_${cluster_id}.draft.fasta" \
     -o "cluster_${cluster_id}.medaka_out" \
@@ -64,7 +64,7 @@ done < "$CLUSTER_TSV"
 
 cat consensus_dir/*.fasta > raw_consensus.fasta 2>/dev/null || touch raw_consensus.fasta
 
-pixi run --manifest-path "$PIPE/env/cluster/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
   python -c "
 sizes = {}
 with open('$CLUSTER_TSV') as f:
@@ -83,7 +83,7 @@ with open('raw_consensus.fasta') as f:
 open('${SAMPLE}.sequences.fasta','w').write(''.join(out))
 "
 
-pixi run --manifest-path "$PIPE/env/cluster/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
   python -c "
 import json, os
 sizes = {}

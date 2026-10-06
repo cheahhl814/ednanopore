@@ -1,8 +1,8 @@
 ---
 name: reference-db-preflight
 description: Preflight validation for nf-edna-nanopore's reference-db sub-skill. Verifies (1) classifier mode confirmed (minimap2/kraken2/idtaxa), (2) disk space (≥ 2 GB, scaled to the chosen mode), (3) Internet connectivity to the canonical URL (HEAD request), (4) assets directory writable, (5) license accepted, (6) minimap2 available (minimap2 mode only) or DECIPHER + gdown available (idtaxa mode only — gdown is pip-only and not bundled; PEP-668 systems block a plain user install). Produces a GO / GO-WITH-WARNINGS / NO-GO verdict gate before any download or build command is invoked.
-version: 0.1.0
-updated: "2026-08-19"
+version: 0.3.0
+updated: "2026-10-06"
 triggers:
   - "reference-db preflight nanopore"
   - "validate 16S reference download"
@@ -12,7 +12,7 @@ requires:
   - "Internet access to one of: ftp.ncbi.nlm.nih.gov, ont-open-data S3, genome-idx.s3.amazonaws.com, drive.google.com (idtaxa mode only)"
   - "minimap2 (for minimap2 mode's index-build check)"
   - "R ≥ 4.2 with DECIPHER (idtaxa mode only)"
-  - "gdown (idtaxa mode only — pip package, not bundled; use a venv on PEP-668-managed systems, e.g. Debian/Ubuntu 24.04+)"
+  - "biodb-fetch sibling skill (idtaxa mode — the SILVA DECIPHER model is fetched via its `decipher` key; gdown is bundled in its env, so no venv workaround is needed)"
 ---
 
 # Sub-Skill: reference-db-preflight (nf-edna-nanopore)
@@ -146,9 +146,9 @@ Each stop point follows the canonical **Evidence + Recommend + Options** pattern
 ### SP6 — Mode-specific tool availability
 
 > **Evidence**:
-> - `minimap2` mode: `pixi run --manifest-path runners/manual-runner/env/cluster/pixi.toml minimap2 --version` (the MMI build step needs `minimap2 -d`).
+> - `minimap2` mode: `pixi run --manifest-path <skill-root>/pixi.toml -e cluster minimap2 --version` (the MMI build step needs `minimap2 -d`).
 > - `kraken2` mode: no build step — extraction only (`tar -xzf`); this stop point auto-passes.
-> - `idtaxa` mode: `pixi run --manifest-path runners/manual-runner/env/classification/pixi.toml Rscript -e 'requireNamespace("DECIPHER", quietly=TRUE)'` **and** `which gdown` (battle-tested 2026-08-19: `gdown` is a pip-only package, not bundled by pixi or the OS by default; on PEP-668-managed systems `pip install --user gdown` is blocked outright, so this check must run before SP2's download step, not after it fails).
+> - `idtaxa` mode: `pixi run --manifest-path <skill-root>/pixi.toml -e classification Rscript -e 'requireNamespace("DECIPHER", quietly=TRUE)'` **and** biodb-fetch deployed as a sibling skill (its pixi env ships gdown) (battle-tested 2026-08-19: `gdown` is a pip-only package, not bundled by pixi or the OS by default; on PEP-668-managed systems `pip install --user gdown` is blocked outright, so this check must run before SP2's download step, not after it fails).
 - ✅ PASS if: the mode's required tool(s) are available
 - ❌ FAIL if: missing
 
@@ -177,10 +177,10 @@ Same logic as `nf-edna/reference-db-preflight` §1 — count PASS/WARN/FAIL acro
 | --- | --- | --- |
 | `curl: (6) Could not resolve host: ftp.ncbi.nlm.nih.gov` | No DNS / firewall / NCBI FTP outage | Retry, or switch to the EPI2ME S3 bundle (§1 catalog alternative) |
 | `curl: (28) Connection timed out` on `ont-open-data.s3...` | S3 region routing hiccup | Retry with `--retry 3 --retry-delay 5`; both `s3-eu-west-1` and unregioned `s3.amazonaws.com` hostnames exist in the catalog — try the other |
-| `minimap2: command not found` | Pixi env for `cluster` not yet resolved | `pixi install --manifest-path runners/manual-runner/env/cluster/pixi.toml` |
+| `minimap2: command not found` | Pixi env for `cluster` not yet resolved | `pixi install --manifest-path <skill-root>/pixi.toml` |
 | `HTTP 403 Forbidden` on Google Drive (idtaxa mode) | Google Drive blocks bots | Use `gdown` (same fix as nf-edna's reference-db) |
 | `tar: unexpected end of file` on a Kraken2 `.tgz` | Truncated download | Re-download with `curl -C -` to resume; verify size matches the catalog table |
-| `pixi: r-decipher not found` (idtaxa mode) | pixi env for classification missing DECIPHER | `pixi add --manifest-path runners/manual-runner/env/classification/pixi.toml bioconductor-decipher` (already declared — re-resolve the env) |
+| `pixi: r-decipher not found` (idtaxa mode) | pixi env for classification missing DECIPHER | `pixi add --manifest-path <skill-root>/pixi.toml -e classification bioconductor-decipher` (already declared — re-resolve the env) |
 
 ## 3. Related skills
 

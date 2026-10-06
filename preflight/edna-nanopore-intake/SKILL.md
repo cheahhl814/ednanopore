@@ -1,7 +1,7 @@
 ---
 name: edna-nanopore-intake
 description: "Validate Nanopore (ONT/MinION/PromethION) 16S rRNA eDNA metabarcoding run inputs and write the initial pipeline_state.json with a GO / GO-WITH-WARNINGS / NO-GO verdict. No variant choice — resolves run-time primer/length inputs plus reference-asset paths for all three classification methods (readbased+minimap2/RefSeq, readbased+IdTaxa/SILVA, consensus+medaka+IdTaxa/SILVA), which run by default unless the scientist explicitly opts one out. Computes 7 evidence items. Refuses to write a GO verdict if any required tool or input is missing. The downstream run/edna-nanopore-run sub-skill refuses to execute without verdict ≥ GO-WITH-WARNINGS. Has 7 explicit ask-user stop points (SP1-SP7). Triggers: 'new Nanopore 16S run', 'ONT 16S intake', 'MinION eDNA intake', 'start nf-edna-nanopore', 'long-read 16S eDNA pipeline', '16S Nanopore intake', 'eDNA Nanopore parameters'."
-version: 0.2.0
+version: 0.3.0
 updated: "2026-10-06"
 triggers:
   - "new Nanopore 16S run"

@@ -40,7 +40,7 @@ mapfile -t SAMPLES < <(cut -f1 "$MANIFEST")
 classify_one() {
   local sample=$1
   echo "[$sample] minimap2_lca classification..."
-  pixi run --manifest-path "$PIPE/env/classification/pixi.toml" \
+  pixi run --manifest-path "$PIPE/../../pixi.toml" -e classification \
     python "$PIPE/bin/minimap2_lca.py" \
     --query_fasta "$QC_DIR/$sample/${sample}.trimmed.fastq.gz" \
     --ref_mmi "$REF_MMI" \
@@ -89,7 +89,7 @@ print(f"Wrote {out_path}: {len(table)} lineage rows")
 PYEOF
 
 echo "=== decontaminating ==="
-pixi run --manifest-path "$PIPE/env/decontam/pixi.toml" \
+pixi run --manifest-path "$PIPE/../../pixi.toml" -e decontam \
   julia "$PIPE/bin/decontam_by_taxon.jl" \
   --taxon_table "$ASV/taxon_abundance_table.tsv" \
   --metadata "$METADATA" \

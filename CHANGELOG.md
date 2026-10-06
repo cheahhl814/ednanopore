@@ -1,5 +1,60 @@
 # Changelog
 
+## v0.3.0 — Rebuilt on bioinfo-skill-creator v1.4.0 standard; biodb-fetch wired in
+
+**Structural rebuild, no pipeline-behavior change.** v0.2.0's agent-manual,
+three-methods-by-default design is preserved; this release brings the skill
+up to the bioinfo-skill-creator v1.4.0 structural standard and wires the
+[biodb-fetch](https://github.com/cheahhl814/biodb-fetch) dependency skill in
+for reference-database retrieval.
+
+### biodb-fetch is now the retrieval layer
+
+`reference-db/` had its own raw `curl` + ad-hoc-gdown-venv download commands,
+with no md5, no retries, and no retrieval manifest. v0.3.0 delegates every
+download to biodb-fetch's `run/markers-reference` module
+(`scripts/marker_refs.py`), which executes fetches under the manifest.tsv
+contract (md5, bytes, retrieval_date, contract_version), handles
+Google-Drive-via-gdown inside its own pixi env (the PEP-668 venv workaround
+is gone), gates non-commercial sources (`midori2`, `bold`) on
+`--i-accept-license`, and deduplicates against its content-addressed store.
+Division of responsibilities after the rebuild:
+
+| Concern | Owner |
+| --- | --- |
+| Which URL / which version / which license | `reference-db/` (curation, unchanged) |
+| Download execution, md5, retries, manifest rows | `biodb-fetch` (`scripts/marker_refs.py` / `ncbi_fetch.py`) |
+| Local index building: `minimap2 -d`, `tax_lookup.tsv` join, IdTaxa model placement | `reference-db/` (unchanged) |
+
+If biodb-fetch is not deployed as a sibling skill, the reference-db preflight
+now stops instead of falling back to raw `curl` — the fallback path predates
+v0.3.0 and drops the manifest contract.
+
+### Single root pixi.toml (v1.4.0 convention)
+
+The six per-stage manifests (`runners/manual-runner/env/*/pixi.toml`) are
+consolidated into **one root `pixi.toml`** with `[feature.<env>]` entries
+(`qc`, `classification`, `cluster`, `diversity`, `decontam`, `association`),
+`[environments]` blocks, and the `update-check` task. All five runner
+scripts and the reference-db docs now invoke
+`pixi run --manifest-path <skill-root>/pixi.toml -e <env>`. The per-env
+`.toml` files are removed from the tree (recoverable from git history);
+the decontam env's Julia `Project.toml`/`Manifest.toml` files remain in place,
+pointed at via `[feature.decontam.activation]`.
+
+### Other v1.4.0 standard additions
+
+- `bin/skill-update-check.py` — `pixi run update-check` diffs the deployed
+  git SHA against upstream via `git fetch`; no GitHub API call.
+- `docs-corpus/` — offline per-tool docs snapshots for all 12 conda tools
+  (version-matched `--help`/`man` captures where locally installed; upstream
+  GitHub READMEs otherwise).
+- `test-data/make_fixtures.py` + `MANIFEST.tsv` — deterministic stdlib-only
+  fixtures (fixed seed, gzip `mtime=0`, sha256 over decompressed bytes).
+- README.md re-rendered from the v1.4.0 template (GFM, admonitions, no
+  machine-specific paths), and `preflight.md` / `preflight_evidence.txt` /
+  `params.json` recorded from this rebuild's preflight audit.
+
 ## v0.2.0 — Nextflow removed; three classification methods by default
 
 **Breaking change.** v0.1.0 made the scientist pick exactly one of two
