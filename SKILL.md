@@ -1,8 +1,8 @@
 ---
 name: ednanopore
 description: End-to-end agent orchestration of the ednanopore manual (agent-driven, no Nextflow) pipeline for Nanopore-sequenced eDNA metabarcoding, FIRST-CLASS MULTI-MARKER since v0.5.0 — 16S (Bacteria/Archaea), 18S (full-length or V9/Euka02-class), 12S (MiFish-class), COI, and ITS, each with a bundled marker preset carrying validated length-window defaults, kingdoms, and the correct biodb-fetch retrieval keys. Runs three complementary classification methods by default — readbased+minimap2/LCA (species-level, every read counted), readbased+IdTaxa/SILVA (broader reference, genus-level ceiling), and consensus+medaka-polish+classification (error-corrected) — because no single method is sufficient for this data type; see run/ednanopore-run/SKILL.md's case study. References are DELEGATED to the biodb-fetch dependency skill (its scripts/marker_refs.py + manifest.tsv contract own download execution, md5, retries and license gating); this skill keeps catalog curation and local index-building; 12S/COI/ITS default to minimap2-LCA with custom-trained IdTaxa as opt-in. Use when the user has ONT/MinION/PromethION amplicon reads of any bundled marker — ednanopore's ONT-native flow differs from nf-edna's Illumina-oriented NGmerge PE-merge + VSEARCH UNOISE3 chain. Builds on read-qc-trimming (raw-read QC upstream) and pairs with edna-gbif-publish / edna-visualize (consensus-method outputs of GBIF-publishable markers only, downstream).
-version: 0.5.0
-updated: "2026-10-06"
+version: 0.5.1
+updated: "2026-10-07"
 triggers:
   - "Nanopore 16S metabarcoding"
   - "ONT 16S amplicon"

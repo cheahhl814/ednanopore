@@ -45,7 +45,7 @@ THREADS=${15:-4}
 PIPE=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FILTER_CONDITION="${NEG_COL} == false"
 
-mapfile -t SAMPLES < <(cut -f1 "$MANIFEST")
+mapfile -t SAMPLES < <(awk -F'\t' 'NR==1 && $1=="sample_id"{next} {print $1}' "$MANIFEST")
 
 mkdir -p "$OUT_DIR"/{cluster/selfmap,cluster/chimera,cluster/clusters,cluster/consensus,asv_table,taxonomy}
 

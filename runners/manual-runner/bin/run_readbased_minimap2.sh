@@ -35,7 +35,7 @@ TAX="$OUT_DIR/taxonomy"
 ASV="$OUT_DIR/asv_table"
 mkdir -p "$TAX" "$ASV"
 
-mapfile -t SAMPLES < <(cut -f1 "$MANIFEST")
+mapfile -t SAMPLES < <(awk -F'\t' 'NR==1 && $1=="sample_id"{next} {print $1}' "$MANIFEST")
 
 classify_one() {
   local sample=$1

@@ -17,10 +17,24 @@ cd "$OUTDIR"
 while IFS=$'\t' read -r cluster_id size read_ids; do
   [ -z "$cluster_id" ] && continue
 
+  # Resume: skip clusters whose polished consensus already exists.
+  if [ -s "consensus_dir/${cluster_id}.fasta" ]; then
+    echo "[$SAMPLE] cluster $cluster_id already polished, skipping"
+    continue
+  fi
+
+  # Battle-test 2026-10-06 fix: pass read IDs via a FILE, not an inline
+  # python -c string. Large single-taxon clusters (e.g. one genus >90% of
+  # a sample) blow past ARG_MAX (E2BIG: 'Argument list too long') when the
+  # ID list is interpolated into the -c code.
+  printf '%s\n' "$read_ids" | tr ',' '\n' > "cluster_${cluster_id}.readids.txt"
+
   pixi run --manifest-path "$PIPE/../../pixi.toml" -e cluster \
     python -c "
 import gzip
-keep = set('''${read_ids}'''.split(','))
+keep = set()
+with open('cluster_${cluster_id}.readids.txt') as f:
+    keep = {line.strip() for line in f if line.strip()}
 kept = []
 draft_fa = ''
 draft_len = -1

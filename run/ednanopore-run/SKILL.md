@@ -1,8 +1,8 @@
 ---
 name: ednanopore-run
 description: "Execute the ednanopore manual (agent-driven) pipeline: QC, then the classification methods in scope from the marker preset — readbased_minimap2 (default for every marker), readbased_idtaxa (default for 16S/18S via the stock SILVA SSU model; for 12S/COI/ITS it requires a custom-trained model and is opt-in), plus consensus polishing + classification by default — per CHANGELOG.md's conclusion that no single approach is sufficient for Nanopore eDNA. No Nextflow — every stage is a direct shell invocation of a script under runners/manual-runner/bin/, run via the Bash tool and shown to the scientist before execution. Monitors progress, updates pipeline_state.json after each stage. Has explicit ask-user stop points (SP1-SP5) that fire only when evidence is ambiguous. Triggers: 'run Nanopore 16S pipeline', 'run ednanopore', 'run Nanopore 18S/12S/COI/ITS pipeline', 'continue Nanopore run', 'Nanopore QC stage', 'Nanopore classify', 'Nanopore consensus clustering'.""
-version: 0.5.0
-updated: "2026-10-06"
+version: 0.5.1
+updated: "2026-10-07"
 triggers:
   - "run Nanopore 16S pipeline"
   - "run ednanopore"

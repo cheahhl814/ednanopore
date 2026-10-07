@@ -69,6 +69,9 @@ run_one() {
 
 while IFS=$'\t' read -r sample infile; do
   [ -z "$sample" ] && continue
+  # Battle-test round-2 fix: skip the manifest header row (sample_id<TAB>fastq_filename)
+  # -- previously it created a bogus sample_id/ output dir from the header.
+  [ "$sample" = "sample_id" ] && continue
   run_one "$sample" "$infile" &
 done < "$MANIFEST"
 wait

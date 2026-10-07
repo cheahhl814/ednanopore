@@ -1,8 +1,8 @@
 ---
 name: reference-db
 description: Curated catalog of reference-database sources for ednanopore's classifiers — for 16S: NCBI RefSeq Targeted Loci (minimap2 MMI + taxonomy lookup TSV, the default `minimap2` classifier), pre-built Kraken2 16S indexes (the `kraken2` alt classifier), and SILVA DECIPHER IdTaxa (the opt-in `idtaxa` classifier); since v0.5.0 also non-16S markers — 18S (SILVA/PR2 + the same SILVA SSU IdTaxa model), 12S (MitoHelper/MitoFish), COI (MIDORI2 CC-BY-NC / BOLD), ITS (UNITE), all retrieved via the biodb-fetch dependency skill (github.com/cheahhl814/biodb-fetch — scripts/marker_refs.py + manifest.tsv contract); this sub-skill keeps curation (which URL/version/license), local index building (minimap2 -d, tax_lookup join, IdTaxa model placement), and verdict gating. Mirrors the BettaMt ask-user-stop-points pattern. Use when the user asks to "get a reference for ednanopore", "download the 16S minimap2 index", "get an 18S/12S/COI/ITS reference", "where do I get the reference for the Nanopore pipeline", or "build the tax_lookup TSV".
-version: 0.5.0
-updated: "2026-10-06"
+version: 0.5.1
+updated: "2026-10-07"
 triggers:
   - "reference for ednanopore"
   - "download 16S minimap2 index"

@@ -1,8 +1,8 @@
 ---
 name: ednanopore-interpret
 description: "Turn ednanopore pipeline outputs (readbased_minimap2, readbased_idtaxa, consensus_idtaxa — up to three methods, run by default) into a structured Markdown report with a mandatory cross-method comparison, a plain-language narrative summary, and an interactive Q&A session. The report always surfaces large (>2x) disagreements between methods as findings to flag, not noise to average away — this is the core value of running three methods instead of one. Diversity/DAA/correlation sections are consensus_idtaxa-only (it's the only method producing rep-seqs for phylogenetic placement). Refuses to interpret if upstream pipeline_state.json.completed_stages lacks at least one classification method. Has 4 explicit ask-user stop points (SP1-SP4). Triggers: 'interpret Nanopore 16S results', 'ONT 16S report', 'summarize Nanopore run', 'MinION 16S Results section', 'eDNA Nanopore diversity interpretation', 'eDNA Nanopore differential abundance', 'compare Nanopore classification methods'."
-version: 0.5.0
-updated: "2026-10-06"
+version: 0.5.1
+updated: "2026-10-07"
 triggers:
   - "interpret Nanopore 16S results"
   - "ONT 16S report"
@@ -147,7 +147,8 @@ Read `results/{run_id}/run_summary.json` if present (primary data source). If ab
 Before writing anything:
 
 - **Zero classified reads/taxa**, **empty taxonomy**, **missing expected files**, **very low read counts**, **blank contamination** — same checks as before, applied per completed method.
-- **Cross-method divergence** (new, and the most important check): for every method pair that both completed, compute mean relative abundance per phylum (and per genus if time allows) and flag any phylum where the ratio between two methods' estimates exceeds 2x. This is not automatically a problem — it may be a genuine, informative finding (see the Acidobacteriota case: 3.6% / 9.4% / 19.3% across the three methods was real and traceable to RefSeq vs. SILVA coverage, not a bug) — but it must never be silently smoothed over. Report the magnitude and, if you can isolate which factor (reference database vs. clustering) using the specific method pairs available, say so; if you can't fully isolate it, say that too.
+- **Rejection audit (v0.5.1, zero compute — run it FIRST)**: per completed method, compute the unclassified fraction U (reads with no taxonomic assignment at any rank) over the method's true-sample reads. This is the Step-0 gate from the classifier debate: U ≈30% is the decision point; a large U on modern-chemistry (Q20+) reads means reference-driven per-read rejection, not error suppression; a small U (<20%) means recovery-as-main-channel is not supported. When per-read classification files and QC'd FASTQs are both present, also stratify the rejected pool by read quality (mean/median Q of rejected vs classified reads): clean rejected reads (Q20+) ⇒ reference-driven; noisy rejected reads ⇒ error-driven — report which branch the evidence supports.
+- **Cross-method divergence**: for every method pair that both completed, compute mean relative abundance per phylum (and per genus if time allows) and flag any phylum where the ratio between two methods' estimates exceeds 2x. This is not automatically a problem — it may be a genuine, informative finding (see the Acidobacteriota case study: 3.6% / 9.4% / 19.3% in the original run was real and traced to reference coverage, not a bug; on the modern-chemistry 10k battle-test the same phylum decomposed as 9.2% / 15.8% / 14.8–17.1% with the gap dominated by the reference swap) — but it must never be silently smoothed over. With all three methods run, report the **decomposition arithmetic**: reference effect = (a)→(b) delta (same trimmed reads, RefSeq→SILVA), pooling/polish effect = (b)→(c) delta (same classifier+reference, clustered+polished reads). If you can't fully isolate the factor, say that too.
 - **Consensus method missing rep-seqs**: if `consensus_idtaxa` is in `methods` but `outputs.rep_seqs`/`filtered_rep_seqs.fna` is missing, flag for investigation — it must produce rep-seqs by construction.
 
 ### Step 3 — Mode 1: Structured report
@@ -177,10 +178,14 @@ This run used **`{methods}`** of ednanopore's three classification methods.
 |---|---|---|---|
 | ... top 10-15 by combined abundance ...
 
-**Divergences >2x:** {list any, with the magnitude and, where isolable, which
-factor — reference database vs. clustering — likely explains it. If a
-divergence can't be explained with the methods available, say that explicitly
-rather than guessing.}
+**Divergences, reported as bracket + decomposition (v0.5.1):** {for each
+flagged phylum: the bracket (a)..(b)..(c), the reference-effect delta
+(a→b) and the pooling/polish-effect delta (b→c), and which factor the
+arithmetic says dominates. When only 2 methods ran, name the single
+delta and its candidate factor explicitly — with no (b), the reference
+and pooling effects are confounded and must not be split by guessing.
+If a divergence can't be explained with the methods available, say that
+explicitly rather than guessing.}
 
 [If only 1 method ran:] This report reflects only `{method}` — the other
 two methods' blind spots (see run/ednanopore-run/SKILL.md's method table)
@@ -188,6 +193,20 @@ are not cross-checked in this report. Consider re-running with all three.
 ```
 
 This banner must be the first thing after Run Summary — never buried in Caveats.
+
+> **v0.5.1 upgrade — rejection-audit table + bracket reporting.** Two
+> changes from the 10k battle-test round 4: (1) the comparison must open
+> with a **rejection-audit table** (per method: denominator reads,
+> unclassified n/%, and the rejected pool's median read quality when QC
+> data is present) — the unclassified reservoir is the evidence that
+> decides what a disagreement means; (2) divergences are reported as a
+> **bracket + decomposition arithmetic** — reference effect = (a)→(b)
+> delta (same reads, swapped reference), pooling/polish effect = (b)→(c)
+> delta (same classifier+reference, clustered reads) — never as a bare
+> >2x flag. On the battle-test dataset this resolved the Acidobacteriota
+> case: 9.2% (a) / 15.8% (b) / 14.8–17.1% (c) ⇒ the gap is
+> reference-driven (RefSeq→SILVA +6.6 pt); pooling adds only ~+1.3 pt.
+> Evidence: `run/stage1-audit-report.md` + the round-4 wiki audits.
 
 #### QC Summary
 
@@ -236,6 +255,8 @@ Ground every answer in actual files. If a question needs `consensus_idtaxa`-only
 - [ ] Every reported number traces to `run_summary.json` or a specific output file.
 - [ ] Every anomaly from SP2 (including any >2x cross-method divergence) is in the comparison section or Caveats.
 - [ ] The narrative names the method(s) run and any major divergence in its first paragraph.
+- [ ] The **rejection-audit table** (denominator reads, unclassified n/%, rejected-pool quality where computable) opens the comparison section.
+- [ ] Every >2x divergence carries the **bracket + decomposition arithmetic** (reference delta (a→b), pooling delta (b→c)) — or an explicit statement that the two effects are confounded because only 2 methods ran.
 - [ ] If Q&A ran and a transcript was requested, it's at `results/{run_id}/qa_transcript.md`.
 
 ## Invariants

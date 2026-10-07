@@ -1,6 +1,6 @@
 # Nanopore eDNA Metabarcoding (agent-driven, multi-marker)
 
-[![Version](https://img.shields.io/badge/version-0.3.0-blue)](#-installation)
+[![Version](https://img.shields.io/badge/version-0.5.1-blue)](#-installation)
 [![Type](https://img.shields.io/badge/type-agent%20skill-blueviolet)](#-installation)
 [![Built with](https://img.shields.io/badge/built%20with-bioinfo--skill--creator-orange)](https://github.com/cheahhl814/bioinfo-skill-creator)
 
@@ -11,7 +11,7 @@ End-to-end agent orchestration of Nanopore-sequenced eDNA metabarcoding, multi-m
 **Repository**: https://github.com/cheahhl814/ednanopore
 
 > [!NOTE]
-> Current version: **v0.3.0** (updated 2026-10-06).
+> Current version: **v0.5.1** (updated 2026-10-07): battle-test hardening round — rejection-audit table + bracket/decomposition reporting in interpret, manifest-header-skip fix in all runners, mia/rbiom pin so agglomeration loads, medaka E2BIG + per-cluster resume fix, biodb-fetch `--url` contract.
 
 ## Contents
 

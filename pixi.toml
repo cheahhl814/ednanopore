@@ -43,6 +43,8 @@ bioconductor-decipher = ">=3.6.0,<4"
 bioconductor-genomeinfodb = ">=1.42.0,<2"
 bioconductor-s4vectors = ">=0.48.0,<0.49"
 bioconductor-mia = ">=1.18.0,<2"
+# mia 1.18 imports unifrac from rbiom; rbiom>=3 dropped that export (round-2 bug 4)
+r-rbiom = "<3"
 r-ggplot2 = ">=4.0.2,<5"
 bioconductor-miaviz = ">=1.18.0,<2"
 
@@ -98,6 +100,8 @@ r-ggplot2 = ">=4.0.2,<5"
 r-dplyr = ">=1.2.0,<2"
 r-patchwork = ">=1.3.2,<2"
 bioconductor-mia = ">=1.18.0,<2"
+# mia 1.18 imports unifrac from rbiom; rbiom>=3 dropped that export (round-2 bug 4)
+r-rbiom = "<3"
 bioconductor-s4vectors = ">=0.48.0,<0.49"
 bioconductor-miaviz = ">=1.18.0,<2"
 bioconductor-complexheatmap = ">=2.22.0,<3"

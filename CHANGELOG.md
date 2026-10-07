@@ -1,5 +1,55 @@
 # Changelog
 
+## v0.5.1 — Battle-test hardening: rejection-audit reporting + runner fixes
+
+All fixes below came out of the 10k-subsample battle test
+(see `battle-test-report.md` + the debate ledger; bugs ①–④ are the
+round-2 tally, now fixed).
+
+### interpret/ednanopore-interpret
+
+- **Rejection-audit table** (mandatory, first thing in the comparison
+  section): per method — denominator reads, unclassified n/%, rejected
+  pool's median read quality when QC data is present. Step-0 U-gate
+  semantics documented (≈30% decision point; <20% falsifies
+  recovery-as-main-channel; large U + clean reads ⇒ reference-driven
+  rejection).
+- **Bracket + decomposition reporting** replaces the bare >2x flag:
+  reference effect = (a)→(b) delta (same reads, RefSeq→SILVA),
+  pooling/polish effect = (b)→(c) delta (same classifier, clustered
+  reads); with only 2 methods the effects are declared confounded.
+  Battle-test anchor numbers: Acidobacteriota 9.2% (a) / 15.8% (b) /
+  14.8–17.1% (c) — reference-swap dominates on modern chemistry,
+  pooling ≈ +1.3 pt and identity-linked (5.3% rescue in 95–99%
+  clusters vs 0.9% in ≥99%).
+
+### runners/manual-runner
+
+- **Manifest-header skip** (bug ①): `run_qc.sh` + all three method
+  runners now skip a header row (`sample_id<TAB>fastq_filename`) when
+  reading the manifest — previously it created a bogus `sample_id/` QC
+  dir; runner loops treated the header as a sample.
+- **medaka_polish_one.sh** (bug ②): read-ID list passed via file, not an
+  inline `python -c` string — large single-taxon clusters blew past
+  ARG_MAX (E2BIG). Plus per-cluster resume-skip (existing polished
+  consensuses are skipped on relaunch).
+
+### environments
+
+- **mia/rbiom pin** (bug ④): `r-rbiom = "<3"` in the `classification`
+  and `association` features — mia 1.18 imports `unifrac`, which rbiom
+  ≥3 no longer exports (`agglomerate_data.R` hard-failed on load).
+  Verified: mia 1.18.0 loads with rbiom 2.2.1; the round-2 attempt's
+  missing per-rank agglomeration tables regenerated successfully.
+- (Bug ③, decontam julia env not instantiated — fixed during the battle
+  test via `Pkg.instantiate()`, environment-side; no manifest change.)
+
+### Dependency contract
+
+- biodb-fetch now accepts `--url` for marker_refs (this skill's §0.6
+  docs said `--url` while older biodb-fetch only took `--file-url` —
+  fixed on the biodb-fetch side, `0732463` + makedirs fix `d158c61`).
+
 ## v0.5.0 — Multi-marker: 18S, 12S, COI, ITS join 16S (other domains, not just Bacteria)
 
 **First-class multi-marker support.** v0.4.0's skill was bacterial/archaeal
