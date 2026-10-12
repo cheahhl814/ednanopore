@@ -1,8 +1,8 @@
 ---
 name: ednanopore
 description: Agent orchestration of the ednanopore manual pipeline (no Nextflow) for Nanopore eDNA metabarcoding, multi-marker since v0.5.0 — 16S, 18S, 12S, COI and ITS, each with a bundled marker preset (validated length windows, kingdoms, biodb-fetch retrieval keys). Runs three complementary classification methods by default — readbased+minimap2/LCA (species-level), readbased+IdTaxa/SILVA (genus-level ceiling) and consensus+medaka-polish+classification (error-corrected) — as no single method suffices. References are DELEGATED to the biodb-fetch dependency skill (download, md5, retries, license gating); this skill keeps catalog curation + local index-building; 12S/COI/ITS default to minimap2-LCA, custom-trained IdTaxa opt-in. Use for ONT/MinION/PromethION amplicon reads of any bundled marker — ONT-native, unlike nf-edna's Illumina NGmerge + VSEARCH UNOISE3 chain. Builds on read-qc-trimming (upstream); pairs with edna-gbif-publish / edna-visualize (downstream; consensus outputs of GBIF-publishable markers only).
-version: 0.5.1
-updated: "2026-10-07"
+version: 0.5.2
+updated: "2026-10-12"
 triggers:
   - "Nanopore 16S metabarcoding"
   - "ONT 16S amplicon"
@@ -10,6 +10,8 @@ triggers:
   - "long-read 16S classification"
   - "full-length 16S nanopore"
   - "ednanopore"
+skills:
+  - "biodb-fetch"
 requires:
   - "Pixi (curl -fsSL https://pixi.sh/install.sh | bash) — single root pixi.toml with per-stage [feature.<env>] entries; run tools with `pixi run --manifest-path <skill-root>/pixi.toml -e <env>`"
   - "biodb-fetch skill (github.com/cheahhl814/biodb-fetch, deployed as a sibling skill) — dependency skill; owns reference-database download execution under the manifest.tsv contract (contract_version is verified by this skill's reference-db sub-skill)"
@@ -18,7 +20,7 @@ requires:
 
 # Meta-Skill: ednanopore
 
-> **v0.3.0.** Structural rebuild on the bioinfo-skill-creator v1.4.0 standard
+> **v0.3.0.** Structural rebuild on the skill-forge v1.4.0 standard
 > (single root `pixi.toml` with per-stage `[feature.<env>]`/`[environments]` entries,
 > `bin/skill-update-check.py` self-update check, `docs-corpus/`, deterministic
 > `test-data/` fixtures, run-artifact gitignore) and **biodb-fetch wired in as the
