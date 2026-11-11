@@ -1,8 +1,8 @@
 ---
 name: reference-db-preflight
 description: Preflight validation for ednanopore's reference-db sub-skill. Verifies (1) classifier mode confirmed (minimap2/kraken2/idtaxa), (2) disk space (≥ 2 GB, scaled to the chosen mode), (3) Internet connectivity to the canonical URL (HEAD request), (4) assets directory writable, (5) license accepted, (6) minimap2 available (minimap2 mode only) or DECIPHER + gdown available (idtaxa mode only — gdown is pip-only and not bundled; PEP-668 systems block a plain user install). Produces a GO / GO-WITH-WARNINGS / NO-GO verdict gate before any download or build command is invoked.
-version: 0.5.0
-updated: "2026-10-06"
+version: 0.6.0
+updated: "2026-11-11"
 triggers:
   - "reference-db preflight nanopore"
   - "validate 16S reference download"

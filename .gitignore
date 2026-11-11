@@ -42,3 +42,7 @@ tool-inventory.json
 # Handoff files (per-round, regenerable/append-only — never ship to GitHub)
 handoff.md
 handoff-archive.md
+.codebase-index/
+# metro-map leftovers (kept in working tree until user decides)
+ednanopore-workflow-metro*.svg
+metro-*.png

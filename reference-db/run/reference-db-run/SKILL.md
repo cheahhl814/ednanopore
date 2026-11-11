@@ -1,8 +1,8 @@
 ---
 name: reference-db-run
 description: Executes ednanopore's reference-db download/build workflow after preflight has passed. For classifier_mode "minimap2" (default) — downloads NCBI RefSeq Targeted Loci 16S FASTA, builds a minimap2 MMI, and derives the tax_lookup TSV from the EPI2ME ref2taxid/taxdump bundle. For "kraken2" — downloads and extracts a pre-built Kraken2 16S database. For "idtaxa" (opt-in, Variant A only) — fetches the SILVA DECIPHER pre-trained file via biodb-fetch's `decipher` key (gdown runs inside biodb-fetch's env — no ad-hoc venv). All downloads go through the biodb-fetch dependency skill (scripts/marker_refs.py, manifest.tsv contract). Writes run_summary.json for downstream consumers.
-version: 0.5.0
-updated: "2026-10-06"
+version: 0.6.0
+updated: "2026-11-11"
 triggers:
   - "run reference-db nanopore"
   - "build 16S minimap2 index"

@@ -1,6 +1,6 @@
 # Nanopore eDNA Metabarcoding (agent-driven, multi-marker)
 
-[![Version](https://img.shields.io/badge/version-0.5.1-blue)](#-installation)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue)](#-installation)
 [![Type](https://img.shields.io/badge/type-agent%20skill-blueviolet)](#-installation)
 [![Built with](https://img.shields.io/badge/built%20with-bioinfo--skill--creator-orange)](https://github.com/cheahhl814/bioinfo-skill-creator)
 
@@ -11,7 +11,9 @@ End-to-end agent orchestration of Nanopore-sequenced eDNA metabarcoding, multi-m
 **Repository**: https://github.com/cheahhl814/ednanopore
 
 > [!NOTE]
-> Current version: **v0.5.1** (updated 2026-10-07): battle-test hardening round — rejection-audit table + bracket/decomposition reporting in interpret, manifest-header-skip fix in all runners, mia/rbiom pin so agglomeration loads, medaka E2BIG + per-cluster resume fix, biodb-fetch `--url` contract.
+> Current version: **v0.6.0** (updated 2026-11-11): cross-skill adoption from edna-agent v1.3.x — optional quantified cross-method comparison (`compare_classifications.R`: per-read minimap2-vs-IdTaxa agreement + abundance side-by-side vs consensus; ask-user at interpret time), SP6 reference-coverage collapse gate in run (stop and audit the reference, never retry a collapsed stage), and interpret fills: rarefaction curves, Pielou evenness, ANCOM-BC alongside Maaslin2 (side by side, never averaged).
+>
+> Prior version: **v0.5.1** (2026-10-07): battle-test hardening round — rejection-audit table + bracket/decomposition reporting in interpret, manifest-header-skip fix in all runners, mia/rbiom pin so agglomeration loads, medaka E2BIG + per-cluster resume fix, biodb-fetch `--url` contract.
 
 ## Contents
 

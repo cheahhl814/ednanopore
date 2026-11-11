@@ -1,5 +1,67 @@
 # Changelog
 
+## v0.6.0 — Cross-skill adoption from edna-agent v1.3.x: comparison mode, reference-coverage gate, interpret fills
+
+All three feature areas below came out of the 2026-11-11 cross-skill review
+of `edna-agent` v1.3.0–v1.3.3 (see wiki obs "edna-agent v1.3.x lessons
+adoptable by ednanopore"; user-approved scope same day).
+
+### run/ednanopore-run
+
+- **SP6 — reference-coverage collapse gate**: when a classification stage
+  exits 0 but the assignment landscape is collapsed (near-zero classified
+  rows, a reference-resident genus/phylum silently absent — the verified
+  `Candidatus Solibacter`/`Koribacter` RefSeq case — empty post-decontam
+  table, or a >5x rate drop vs. a prior run), stop and audit reference
+  coverage before any rerun. Never auto-retry a collapse with looser
+  thresholds — that converts a reference problem into a false-assignment
+  problem. (Adopted from edna-agent's F10/F16 marker-sanity routing.)
+- `params.json.classification_comparison` flag documented (optional;
+  presets the interpret stage's quantified comparison; absent ⇒ interpret
+  asks at run time).
+
+### interpret/ednanopore-interpret
+
+- **Optional quantified cross-method comparison** (`bin/compare_classifications.R`,
+  new; ported from edna-agent v1.3.3 and extended): `--mode per_read`
+  compares minimap2 vs readbased-IdTaxa per-sample on shared SequenceIDs
+  (both classification TSVs share the `SequenceID + 7 rank columns`
+  contract) — the (a)→(b) bracket delta; `--mode abundance` compares
+  lineage tables / per-rank agglomerated tables to fold in consensus —
+  shared-taxa counts, Jaccard, median fold ratio, Spearman, >2x flagged.
+  Outputs live under `results/{run_id}/classification_comparison/` and are
+  **side by side, never merged** — canonical taxonomy stays the primary
+  method's. New **SP5** asks the scientist at run time when ≥2 methods
+  completed and the params flag is not preset.
+- **Rarefaction curves** (`bin/rarefaction.R`, ported from edna-agent
+  v1.3.0; mirrors QIIME2 alpha-rarefaction) under env `diversity`.
+- **Pielou evenness** added to `bin/alpha_diversity.R` (Shannon/log(observed),
+  NA for 0-feature samples) — parity with edna-agent v1.3.0.
+- **ANCOM-BC differential abundance** (`bin/ancombc_differential.R`, ported,
+  includes the edna-agent round-4 F19–F22 API-drift handling) run alongside
+  Maaslin2 — results reported **side by side, never averaged**; taxa
+  significant in both are high-confidence, one-method-only are
+  method-sensitive.
+
+### environments
+
+- `diversity`: + `r-argparse`, `r-data.table`, `r-ggplot2`, `r-vegan`
+  (rarefaction R stack).
+- `association`: + `bioconductor-ancombc >=2.0.0,<3`,
+  `bioconductor-microbiome >=1.22.0,<2` (microbiome required by ancombc's
+  data-import path at runtime — edna-agent F20).
+
+### Not adopted (deliberate)
+
+- Findings-encoding discipline as a separate item — routed through the
+  `skill-evolution` skill instead (user decision 2026-11-11).
+- `_S`-suffix intake normalization — this remains a pre-check only:
+  ednanopore intake derives `manifest.tsv` sample IDs verbatim and has no
+  metadata-ID parity evidence item, so a `_S<n>`-suffixed manifest or an
+  Illumina-style sample sheet would silently break the metadata joins
+  (decontam `neg_col`, `grouping_variable`). Mitigation for now is the
+  documented failure signature; a build is deferred.
+
 ## v0.5.1 — Battle-test hardening: rejection-audit reporting + runner fixes
 
 All fixes below came out of the 10k-subsample battle test

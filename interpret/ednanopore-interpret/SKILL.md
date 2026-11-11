@@ -1,8 +1,8 @@
 ---
 name: ednanopore-interpret
-description: "Turn ednanopore pipeline outputs (readbased_minimap2, readbased_idtaxa, consensus_idtaxa — up to three methods, run by default) into a structured Markdown report with a mandatory cross-method comparison, a plain-language narrative summary, and an interactive Q&A session. The report always surfaces large (>2x) disagreements between methods as findings to flag, not noise to average away — this is the core value of running three methods instead of one. Diversity/DAA/correlation sections are consensus_idtaxa-only (it's the only method producing rep-seqs for phylogenetic placement). Refuses to interpret if upstream pipeline_state.json.completed_stages lacks at least one classification method. Has 4 explicit ask-user stop points (SP1-SP4). Triggers: 'interpret Nanopore 16S results', 'ONT 16S report', 'summarize Nanopore run', 'MinION 16S Results section', 'eDNA Nanopore diversity interpretation', 'eDNA Nanopore differential abundance', 'compare Nanopore classification methods'."
-version: 0.5.1
-updated: "2026-10-07"
+description: "Turn ednanopore pipeline outputs (readbased_minimap2, readbased_idtaxa, consensus_idtaxa — up to three methods, run by default) into a structured Markdown report with a mandatory cross-method comparison, an optional quantified cross-method comparison (compare_classifications.R — per-read rank agreement + abundance-lineage side-by-side), a plain-language narrative summary, and an interactive Q&A session. Diversity/DAA sections are consensus_idtaxa-only (only method producing rep-seqs): alpha diversity incl. Pielou, rarefaction curves, beta/PERMANOVA, and differential abundance with Maaslin2 AND ANCOM-BC run side by side, never averaged/merged. Refuses to interpret if upstream pipeline_state.json.completed_stages lacks at least one classification method. Has 5 explicit ask-user stop points (SP1-SP5). Triggers: 'interpret Nanopore 16S results', 'ONT 16S report', 'summarize Nanopore run', 'MinION 16S Results section', 'eDNA Nanopore diversity interpretation', 'eDNA Nanopore differential abundance', 'compare Nanopore classification methods'."
+version: 0.6.0
+updated: "2026-11-11"
 triggers:
   - "interpret Nanopore 16S results"
   - "ONT 16S report"
@@ -14,6 +14,23 @@ triggers:
 ---
 
 # ednanopore-interpret
+
+> **v0.6.0.** Three additions from the edna-agent v1.3.x cross-skill review:
+> (1) **Optional quantified cross-method comparison** (`bin/compare_classifications.R`
+> in `runners/manual-runner/bin/` — per-read mode compares minimap2 vs
+> readbased-IdTaxa on the SAME trimmed reads (identical SequenceID+rank-column
+> contract); abundance mode folds in consensus via lineage tables / per-rank
+> agglomerated tables, producing pairwise rank-agreement stats (shared taxa,
+> Jaccard, median fold ratio, Spearman, >2x flagged taxa) plus side-by-side
+> rel-abundance tables. The canonical taxonomy stays the primary method's —
+> **side by side, never merged** (same rule as Maaslin2/ANCOM-BC). Ask the
+> scientist at run time (new SP5) unless `params.json.classification_comparison`
+> is preset true/false.
+> (2) **Rarefaction curves** (`bin/rarefaction.R`, env `diversity`, mirrors QIIME2
+> alpha-rarefaction — expected richness vs depth per sample).
+> (3) **ANCOM-BC differential abundance** (`bin/ancombc_differential.R`, env
+> `association`) alongside Maaslin2 — compositional-bias-corrected LFC;
+> both run side by side, their disagreement is a robustness signal, never averaged.
 
 > **v0.2.0.** v0.1.0 had a mandatory "Pipeline Variant & Limitations"
 > banner because the scientist had picked exactly one of two
@@ -113,6 +130,15 @@ Before reading any output, read `pipeline_state.json.completed_stages`. If it co
 
 **Auto-pick when**: mid-Q&A (no ask — the Q&A is the conversation).
 
+### SP5 — Quantified cross-method comparison (v0.6.0, ask at run time)
+
+| Trigger | Evidence check | Action |
+| --- | --- | --- |
+| `params.json.classification_comparison` is `true` | preset | Auto-run: execute the comparison battery (Step 2c) and embed its tables in the comparison section |
+| `params.json.classification_comparison` is `false` | preset | Auto-skip: prose comparison only (pre-v0.6.0 behavior) |
+| Flag absent AND ≥2 classification methods completed | read-write context | Ask once: "`<N>` classification methods ran. I can run the quantified comparison (`bin/compare_classifications.R`): per-read minimap2-vs-IdTaxa rank agreement on the same trimmed reads, plus abundance-level side-by-side vs consensus — adds minutes of compute, produces pairwise-agreement TSVs and side-by-side tables (never merged). (A) run it (recommended), (B) prose comparison only, (C) abort" |
+| Flag absent AND <2 methods completed | — | No ask — comparison impossible; note the limitation in the report |
+
 ### Operating rule
 
 > **Auto-pick when the evidence is unambiguous; ask when the agent genuinely cannot decide.**
@@ -150,6 +176,46 @@ Before writing anything:
 - **Rejection audit (v0.5.1, zero compute — run it FIRST)**: per completed method, compute the unclassified fraction U (reads with no taxonomic assignment at any rank) over the method's true-sample reads. This is the Step-0 gate from the classifier debate: U ≈30% is the decision point; a large U on modern-chemistry (Q20+) reads means reference-driven per-read rejection, not error suppression; a small U (<20%) means recovery-as-main-channel is not supported. When per-read classification files and QC'd FASTQs are both present, also stratify the rejected pool by read quality (mean/median Q of rejected vs classified reads): clean rejected reads (Q20+) ⇒ reference-driven; noisy rejected reads ⇒ error-driven — report which branch the evidence supports.
 - **Cross-method divergence**: for every method pair that both completed, compute mean relative abundance per phylum (and per genus if time allows) and flag any phylum where the ratio between two methods' estimates exceeds 2x. This is not automatically a problem — it may be a genuine, informative finding (see the Acidobacteriota case study: 3.6% / 9.4% / 19.3% in the original run was real and traced to reference coverage, not a bug; on the modern-chemistry 10k battle-test the same phylum decomposed as 9.2% / 15.8% / 14.8–17.1% with the gap dominated by the reference swap) — but it must never be silently smoothed over. With all three methods run, report the **decomposition arithmetic**: reference effect = (a)→(b) delta (same trimmed reads, RefSeq→SILVA), pooling/polish effect = (b)→(c) delta (same classifier+reference, clustered+polished reads). If you can't fully isolate the factor, say that too.
 - **Consensus method missing rep-seqs**: if `consensus_idtaxa` is in `methods` but `outputs.rep_seqs`/`filtered_rep_seqs.fna` is missing, flag for investigation — it must produce rep-seqs by construction.
+
+### Step 2c — Quantified cross-method comparison battery (v0.6.0, SP5)
+
+Run only when SP5 resolved to "run" (preset `true` or the scientist opted in). The battery never touches the canonical method outputs — it writes into `results/{run_id}/classification_comparison/`.
+
+**(a) Per-read agreement: readbased_minimap2 vs readbased_idtaxa** — these two classify the SAME trimmed reads (identical `SequenceID` + rank-column contract), so per-sample comparison on shared SequenceIDs isolates the reference-swap effect (this is the (a)→(b) delta of the bracket decomposition). Run per sample (read IDs are unique per sample FASTQ — don't pool files):
+
+```bash
+for s in $(awk -F'\t' '{print $1}' results/{run_id}/manifest.tsv); do
+  pixi run --manifest-path {SKILL_ROOT}/pixi.toml -e classification \
+    Rscript {SKILL_ROOT}/runners/manual-runner/bin/compare_classifications.R \
+    --mode per_read \
+    --classifications minimap2=results/{run_id}/readbased_minimap2/tax/${s}.minimap2_lca_classification.tsv \
+                      idtaxa=results/{run_id}/readbased_idtaxa/tax/${s}.idtaxa_classification.tsv \
+    --output_pairwise results/{run_id}/classification_comparison/per_read/${s}_pairwise.tsv \
+    --output_concordance results/{run_id}/classification_comparison/per_read/${s}_concordance.tsv
+done
+```
+
+Use the UNFILTERED idtaxa classification (not `*_confident.tsv`) so the unassigned fractions stay comparable — the confidence filter lives downstream of both methods.
+
+**(b) Abundance-level: fold in consensus_idtaxa** — different ID space (polished cluster consensuses), so compare via lineage tables / per-rank agglomerated tables:
+
+```bash
+pixi run --manifest-path {SKILL_ROOT}/pixi.toml -e classification \
+  Rscript {SKILL_ROOT}/runners/manual-runner/bin/compare_classifications.R \
+  --mode abundance \
+  --taxon_tables minimap2=lineage_table=results/{run_id}/readbased_minimap2/tax/decontam_taxon_abundance.tsv \
+                  idtaxa=lineage_table=results/{run_id}/readbased_idtaxa/tax/decontam_taxon_abundance.tsv \
+                  consensus=rank_table:genus=results/{run_id}/consensus_idtaxa/taxonomy/agglomerated_data/genus_counts.tsv \
+  --ranks phylum class family genus \
+  --output_pairwise results/{run_id}/classification_comparison/abundance_pairwise.tsv \
+  --output_table results/{run_id}/classification_comparison/abundance_side_by_side.tsv
+```
+
+(If a per-rank agglomerated table is missing, regenerate it via `bin/agglomerate_data.R` first; a lineage-table spec also accepts the per-rank `*_counts.tsv` shape as `rank_table:<rank>`.)
+
+When consensus_idtaxa didn't run, omit its spec — the script requires ≥2.
+
+**Reporting rule:** quote the comparison numbers side by side in the Methods-Run banner and cite the TSV paths; flag any `n_divergent_gt2x > 0` row; never merge methods into one table and never pick one method's number as "correct" — the decomposition is the finding.
 
 ### Step 3 — Mode 1: Structured report
 
@@ -218,9 +284,35 @@ For each method in `methods`, report: row/ASV count, classification rate per ran
 
 Note: `readbased_idtaxa` and `consensus_idtaxa` will show 0% species-level resolution — this is expected (no species rank in the SILVA training set), not a failure. Don't flag it as an anomaly.
 
-#### Alpha Diversity / Beta Diversity / Differential Abundance / Correlation Analysis *(`consensus_idtaxa` only)*
+#### Alpha Diversity / Rarefaction / Beta Diversity / Differential Abundance / Correlation Analysis *(`consensus_idtaxa` only)*
 
-Same content/sources as before (`asv_table`/`taxonomy/agglomerated_data` under `results/{run_id}/consensus_idtaxa/`). If `consensus_idtaxa` is not in `methods`: "**Not produced.** Only `consensus_idtaxa` produces rep-seqs for phylogenetic diversity/DAA/correlation; this run didn't include that method." If `consensus_idtaxa` ran but didn't reach these stages: "Output unavailable."
+Same content/sources as before (`asv_table`/`taxonomy/agglomerated_data` under `results/{run_id}/consensus_idtaxa/`; consensus method did not run: "**Not produced.** Only `consensus_idtaxa` produces rep-seqs for phylogenetic diversity/DAA/correlation; this run didn't include that method." If it ran but didn't reach these stages: "Output unavailable.").
+
+v0.6.0 additions to this section:
+
+- **Pielou evenness** — `bin/alpha_diversity.R` now computes `pielou` (Shannon / log(observed); NA for 0-feature samples) alongside observed/shannon/faith automatically; include it in the alpha table and plots.
+- **Rarefaction curves** (mirrors QIIME2 `alpha-rarefaction`; run under env `diversity` against the agglomerated ASV counts + metadata):
+```bash
+pixi run --manifest-path {SKILL_ROOT}/pixi.toml -e diversity \
+  Rscript {SKILL_ROOT}/runners/manual-runner/bin/rarefaction.R \
+  --input_asv_counts results/{run_id}/consensus_idtaxa/taxonomy/agglomerated_data/asv_counts.tsv \
+  --input_metadata results/{run_id}/metadata.tsv \
+  --output_dir results/{run_id}/diversity/rarefaction \
+  --grouping_variable {grouping_variable}
+```
+  Report per-sample observed totals and the shallowest-sample depth (the curve ceiling); a curve still rising at that ceiling means the group's richness estimate is depth-limited — say so in Caveats.
+- **Differential abundance — Maaslin2 AND ANCOM-BC, side by side, never averaged (v0.6.0).** Keep the existing Maaslin2 run (`bin/differential_abundance.R`, TSS normalization) and add ANCOM-BC (compositional-bias-corrected log-fold changes):
+```bash
+pixi run --manifest-path {SKILL_ROOT}/pixi.toml -e association \
+  Rscript {SKILL_ROOT}/runners/manual-runner/bin/ancombc_differential.R \
+  --input_asv_counts results/{run_id}/consensus_idtaxa/taxonomy/agglomerated_data/genus_counts.tsv \
+  --input_asv_taxonomy results/{run_id}/consensus_idtaxa/taxonomy/agglomerated_data/genus_taxonomy.tsv \
+  --input_metadata results/{run_id}/metadata.tsv \
+  --grouping_variable {grouping_variable} --reference_level {reference_level} \
+  --level_to_analyze Genus \
+  --output_dir results/{run_id}/association/ancombc_genus
+```
+  Report both methods' significant taxa side by side (one table: taxon, Maaslin2 result, ANCOM-BC result): taxa significant in BOTH are high-confidence; significant in only one are reported as method-sensitive, not dismissed. Never average p-values/LFCs across methods and never merge them into a single "consensus DA" list (same rule as the classification comparison).
 
 #### Caveats
 
@@ -248,6 +340,10 @@ Ground every answer in actual files. If a question needs `consensus_idtaxa`-only
 | `blank contamination, scientist asks "which site is affected?"` | Negative controls are shared across all biological samples | Say contamination findings apply run-wide, not per-site |
 | `Outputs paths in pipeline_state.json point to a different machine's home directory` | State generated elsewhere and copied | Don't trust `outputs` paths literally; navigate relative to the current `results/{run_id}/` |
 | `Q&A answer requires consensus_idtaxa output and it didn't run` | Scope limitation, not a bug | Say so; recommend re-running with `consensus_idtaxa` included if needed |
+| `compare_classifications.R: No common SequenceIDs` | Per-read files are from different samples/different stages (e.g. confident-filtered vs unfiltered), or files were pooled across samples | Compare per sample with the unfiltered idtaxa classification; never pool read-ID files across samples |
+| `compare_classifications.R rank_table spec needs a valid rank` | Per-rank agglomerated table missing or rank misspelled | Regenerate via `bin/agglomerate_data.R`; valid ranks: superkingdom, phylum, class, order, family, genus, species |
+| `ancombc_differential.R: Bioconductor package ANCOMBC not available` | association env not re-solved after the v0.6.0 pixi.toml addition | `pixi install --manifest-path <skill>/pixi.toml -e association`, then retry |
+| `rarefaction.R Error in rarefy(counts_t, sample = d)` | vegan version drift: unnamed-vector or arg-name drift | F18 pattern (edna-agent round 4): name rarefy output explicitly; check `r-vegan` pin `>=2.7_2,<3` |
 
 ## Verification
 
@@ -258,6 +354,8 @@ Ground every answer in actual files. If a question needs `consensus_idtaxa`-only
 - [ ] The **rejection-audit table** (denominator reads, unclassified n/%, rejected-pool quality where computable) opens the comparison section.
 - [ ] Every >2x divergence carries the **bracket + decomposition arithmetic** (reference delta (a→b), pooling delta (b→c)) — or an explicit statement that the two effects are confounded because only 2 methods ran.
 - [ ] If Q&A ran and a transcript was requested, it's at `results/{run_id}/qa_transcript.md`.
+- [ ] (v0.6.0) If the quantified comparison ran (SP5), its TSVs live under `results/{run_id}/classification_comparison/` and the Methods-Run banner cites them side by side — with no method's output merged into any other method's table.
+- [ ] (v0.6.0) If DAA ran, Maaslin2 and ANCOM-BC results are reported side by side (never averaged, never a single merged DA list).
 
 ## Invariants
 
@@ -266,3 +364,4 @@ Ground every answer in actual files. If a question needs `consensus_idtaxa`-only
 - **Never** silently resolve a cross-method disagreement by picking one number — report the spread and your best explanation (or say you can't fully explain it).
 - Never claim a taxon was detected without reading the taxonomy file.
 - Never compute diversity/DAA/correlation on the fly for a run that didn't include `consensus_idtaxa`.
+- **Side by side, never averaged/merged (v0.6.0):** applies at every level — classification methods (compare_classifications.R outputs are diagnostics; canonical taxonomy stays the primary method's) AND differential-abundance methods (Maaslin2 and ANCOM-BC are both reported; disagreement is a robustness signal, not something to resolve by averaging).

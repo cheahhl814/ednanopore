@@ -1,8 +1,8 @@
 ---
 name: ednanopore
 description: Agent orchestration of the ednanopore manual pipeline (no Nextflow) for Nanopore eDNA metabarcoding, multi-marker since v0.5.0 — 16S, 18S, 12S, COI and ITS, each with a bundled marker preset (validated length windows, kingdoms, biodb-fetch retrieval keys). Runs three complementary classification methods by default — readbased+minimap2/LCA (species-level), readbased+IdTaxa/SILVA (genus-level ceiling) and consensus+medaka-polish+classification (error-corrected) — as no single method suffices. References are DELEGATED to the biodb-fetch dependency skill (download, md5, retries, license gating); this skill keeps catalog curation + local index-building; 12S/COI/ITS default to minimap2-LCA, custom-trained IdTaxa opt-in. Use for ONT/MinION/PromethION amplicon reads of any bundled marker — ONT-native, unlike nf-edna's Illumina NGmerge + VSEARCH UNOISE3 chain. Builds on read-qc-trimming (upstream); pairs with edna-gbif-publish / edna-visualize (downstream; consensus outputs of GBIF-publishable markers only).
-version: 0.5.2
-updated: "2026-10-12"
+version: 0.6.0
+updated: "2026-11-11"
 triggers:
   - "Nanopore 16S metabarcoding"
   - "ONT 16S amplicon"
@@ -20,6 +20,19 @@ requires:
 
 # Meta-Skill: ednanopore
 
+> **v0.6.0.** Cross-skill adoption from edna-agent v1.3.x (see
+> `CHANGELOG.md`): optional **cross-method comparison mode**
+> (`bin/compare_classifications.R` — per-read rank agreement for
+> minimap2-vs-IdTaxa on the same trimmed reads, abundance-lineage
+> side-by-side to fold in consensus; ask-user SP5 in interpret, preset
+> via `params.json.classification_comparison`); **SP6 —
+> reference-coverage collapse gate** in the run stage (stop and audit
+> reference coverage, never retry a collapsed stage with looser
+> thresholds); interpret fills — **Pielou evenness** in alpha diversity,
+> **rarefaction curves** (`bin/rarefaction.R`, env `diversity`),
+> **ANCOM-BC + Maaslin2 differential abundance run side by side, never
+> averaged** (`bin/ancombc_differential.R`, env `association`).
+>
 > **v0.3.0.** Structural rebuild on the skill-forge v1.4.0 standard
 > (single root `pixi.toml` with per-stage `[feature.<env>]`/`[environments]` entries,
 > `bin/skill-update-check.py` self-update check, `docs-corpus/`, deterministic

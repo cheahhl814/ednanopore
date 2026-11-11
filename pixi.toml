@@ -63,6 +63,12 @@ samtools = ">=1.19,<2"
 [feature.diversity.dependencies]
 mafft = ">=7.526,<8"
 fasttree = ">=2.2.0,<3"
+# v0.6.0: R stack for bin/rarefaction.R (alpha-rarefaction curves). Kept here
+# (isolated env) to avoid co-solve risk with the classification feature.
+r-argparse = ">=2.3.1,<3"
+"r-data.table" = ">=1.17.8,<2"
+r-ggplot2 = ">=4.0.2,<5"
+r-vegan = ">=2.7_2,<3"
 
 # Isolated env: these tools failed to co-solve with [dependencies] at preflight (step 2h joint solve).
 # Run them with `pixi run -e decontam <cmd>`.
@@ -118,3 +124,9 @@ r-pbkrtest = ">=0.5.5,<0.6"
 r-lmertest = ">=3.2_1,<4"
 r-car = ">=3.1_5,<4"
 r-glmmtmb = ">=1.1.14,<2"
+# v0.6.0: ANCOM-BC differential abundance (bin/ancombc_differential.R), run
+# side by side with Maaslin2 — never averaged. Pins mirror edna-agent's
+# battle-tested env (its F20 note: microbiome is required by ancombc's
+# data-import path at runtime).
+bioconductor-ancombc = ">=2.0.0,<3"
+bioconductor-microbiome = ">=1.22.0,<2"

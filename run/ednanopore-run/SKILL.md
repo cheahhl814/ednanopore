@@ -1,8 +1,8 @@
 ---
 name: ednanopore-run
-description: "Execute the ednanopore manual (agent-driven) pipeline: QC, then the classification methods in scope from the marker preset — readbased_minimap2 (default for every marker), readbased_idtaxa (default for 16S/18S via the stock SILVA SSU model; for 12S/COI/ITS it requires a custom-trained model and is opt-in), plus consensus polishing + classification by default — per CHANGELOG.md's conclusion that no single approach is sufficient for Nanopore eDNA. No Nextflow — every stage is a direct shell invocation of a script under runners/manual-runner/bin/, run via the Bash tool and shown to the scientist before execution. Monitors progress, updates pipeline_state.json after each stage. Has explicit ask-user stop points (SP1-SP5) that fire only when evidence is ambiguous. Triggers: 'run Nanopore 16S pipeline', 'run ednanopore', 'run Nanopore 18S/12S/COI/ITS pipeline', 'continue Nanopore run', 'Nanopore QC stage', 'Nanopore classify', 'Nanopore consensus clustering'.""
-version: 0.5.1
-updated: "2026-10-07"
+description: "Execute the ednanopore manual (agent-driven) pipeline: QC, then the classification methods in scope from the marker preset — readbased_minimap2 (default for every marker), readbased_idtaxa (default for 16S/18S via the stock SILVA SSU model; for 12S/COI/ITS it requires a custom-trained model and is opt-in), plus consensus polishing + classification by default — per CHANGELOG.md's conclusion that no single approach is sufficient for Nanopore eDNA. No Nextflow — every stage is a direct shell invocation of a script under runners/manual-runner/bin/, run via the Bash tool and shown to the scientist before execution. Monitors progress, updates pipeline_state.json after each stage. Has explicit ask-user stop points (SP1-SP6) that fire only when evidence is ambiguous. Triggers: 'run Nanopore 16S pipeline', 'run ednanopore', 'run Nanopore 18S/12S/COI/ITS pipeline', 'continue Nanopore run', 'Nanopore QC stage', 'Nanopore classify', 'Nanopore consensus clustering'.""
+version: 0.6.0
+updated: "2026-11-11"
 triggers:
   - "run Nanopore 16S pipeline"
   - "run ednanopore"
@@ -14,6 +14,20 @@ triggers:
 
 # ednanopore-run
 
+> **v0.6.0.** Two additions from the edna-agent v1.3.x cross-skill review:
+> (1) **SP6 — reference-coverage collapse gate.** When a classification
+> stage completes but the assignment landscape looks collapsed (near-zero
+> classified rows, a whole genus/phylum silently dropped to zero, or an
+> empty post-decontam table), STOP and audit reference coverage before
+> any rerun — collapses are reference-driven by default on this pipeline
+> (verified case: `Candidatus Solibacter`/`Koribacter`, RefSeq has 0 usable
+> hits for either), and a blind retry cannot fix a reference gap.
+> (2) Optional **cross-method comparison mode** (`params.json.classification_comparison:
+> true`, or ask the scientist when ≥2 classification methods completed):
+> `bin/compare_classifications.R` (per-read mode for minimap2-vs-IdTaxa on
+> the same trimmed reads; abundance-lineage mode to fold in consensus) —
+> side by side, never merged (same rule as Maaslin2/ANCOM-BC).
+>
 > **v0.2.0.** Nextflow removed. The pipeline is now **agent-driven**: an
 > agent (you) invokes the scripts under `runners/manual-runner/bin/`
 > directly via the Bash tool, one stage at a time, showing each command to
@@ -107,7 +121,7 @@ method-sensitivity, so don't pre-commit to one method.
 | Path | Source | Required? | Notes |
 | --- | --- | --- | --- |
 | `results/{run_id}/pipeline_state.json` | `preflight/ednanopore-intake` | yes | Must exist with `verdict ∈ {GO, GO-WITH-WARNINGS}`. Drives which stages have run and what's next. |
-| `results/{run_id}/params.json` | `preflight/ednanopore-intake` | yes | Run-specific parameter overrides, merged on top of `runners/manual-runner/defaults/16s-nanopore.json`. |
+| `results/{run_id}/params.json` | `preflight/ednanopore-intake` | yes | Run-specific parameter overrides, merged on top of `runners/manual-runner/defaults/16s-nanopore.json`. Optional flag since v0.6.0: `classification_comparison: true` pre-authorizes the interpret stage to run `bin/compare_classifications.R` (when false/absent, interpret asks — see SP6 of `interpret/ednanopore-interpret`). |
 | `results/{run_id}/manifest.tsv` | `preflight/ednanopore-intake` | yes | `sample_id<TAB>fastq_filename`, one row per sample (no header). Consumed directly by every `bin/run_*.sh` script. |
 | `runners/manual-runner/defaults/16s-nanopore.json` | this skill (bundled) | yes | The single flexible default-parameter set; see its `qc` / `readbased_minimap2` / `readbased_idtaxa` / `consensus` sub-objects. |
 
@@ -171,6 +185,14 @@ Before running any stage, **read `pipeline_state.json.verdict`**. If
 | Scientist explicitly says to skip one of the three classification methods (e.g. "just do consensus", "skip readbased-idtaxa") | Ask once, with the blind-spot table from "Why three methods, not one" reproduced inline: "Running only `<method(s)>` means you lose `<the other method(s)>`'s blind-spot coverage — specifically `<relevant blind spot from the table>`. (A) proceed with just `<method(s)>` anyway, (B) run all three (recommended), (C) abort and reconsider" |
 
 **Auto-pick when**: scientist did not ask to skip anything — default is all three.
+
+### SP6 — Reference-coverage collapse after a classification stage (v0.6.0)
+
+| Trigger | Evidence check | Action |
+| --- | --- | --- |
+| A classification stage exits 0 but the assignment landscape is collapsed: (a) near-zero classified rows for most samples (`wc -l` on per-sample classification TSVs ≈ line count 0–tens), or (b) a whole genus/phylum present in the reference is silently absent from the post-decontam table (e.g. the verified `Candidatus Solibacter`/`Koribacter` case — RefSeq has 0 usable hits), or (c) `taxon_abundance_table.tsv` is empty, or (d) a hit rate that drops >5x vs. a previous run of the same sample set | `head` the per-sample classification TSVs; `wc -l` the abundance tables; grep the reference accession list for the missing taxon; check `tax_lookup` lineages for rank depth | Ask: "`<stage>` completed but the assignment rate collapsed (`<numbers>`). On this pipeline a collapse is reference-driven by default — a rerun cannot fix a reference gap, and retrying with looser thresholds risks false assignments. (A) pause and audit reference coverage first (recommended — check the index covers the marker region, the tax lookup lineages are rank-complete, missing taxa actually exist in the reference; consult `reference-db/`), (B) continue anyway with an explicit CAVEAT recorded in `run_summary.json.notes`, (C) abort (state preserved)" |
+
+**Auto-pick when**: assignment rates are in the normal range for this dataset/marker and no reference-resident taxon is silently absent. **Never** auto-retry a collapsed stage with looser thresholds — that converts a reference problem into a false-assignment problem.
 
 ### Operating rule
 
@@ -319,6 +341,7 @@ summary = {
     "last_stage": state["last_stage"],
     "outputs": state.get("outputs", {}),
     "params_used": state.get("params_used", {}),
+    "classification_comparison": bool(state.get("params_used", {}).get("classification_comparison", False)),
     "notes": [
         "This run uses ednanopore v0.2.0's default of running all three "
         "classification methods (readbased_minimap2, readbased_idtaxa, "
@@ -358,6 +381,8 @@ PY
 | **`run_readbased_idtaxa.sh` or `run_consensus_idtaxa.sh` producing zero species-level calls** | **Not a bug — the pre-trained SILVA IdTaxa model has no species rank at all (verified: 0 of 14,699 training nodes have a genus-rank parent)** | Do not try to fix by lowering `idtaxa_threshold` — that cannot recover a rank the model was never trained on. Use `readbased_minimap2`'s output for species-level identity instead |
 | **Lowering `idtaxa_threshold` below 60 has no effect on output** | **Not a bug — `DECIPHER::IdTaxa()`'s own internal default `threshold` is 60; it never records a confidence value below that, so a downstream filter at the same value is a no-op** | To genuinely change the threshold, it must be passed into the `IdTaxa()` call inside `bin/idtaxa_rds.R` itself (`threshold=` argument), then rerun classification — not just the downstream `filter_idtaxa_by_confidence.jl` step |
 | `decontam_by_taxon.jl: neg_col 'is_negative' not found in metadata` | Metadata column-name mismatch | `head -1 metadata.tsv \| tr '\t' ',' \| grep -i negative` |
+| **Classification stage exits 0 but per-sample classification TSVs are near-empty or a reference-resident genus/phylum is silently absent** | **Reference-coverage collapse — reference-driven by default (verified: RefSeq Targeted Loci has 0 usable hits for `Candidatus Solibacter`/`Koribacter`); a rerun cannot fix a reference gap** | Do NOT rerun with looser thresholds — fire SP6 and audit reference coverage (index marker-region match, tax-lookup rank depth, missing-taxon presence) via `reference-db/` |
+| **Post-stage assignment rate drops >5x vs. a prior run of the same sample set** | Marker/preset or reference-asset swap (e.g. RefSeq→SILVA) changed the coverage regime, or QC parameters changed upstream | Fire SP6; compare against the prior run's bracket decomposition (see `interpret/...` stage-1 audit pattern) before changing thresholds |
 | `R script: package 'X' is not available` | pixi env for that stage missing the package | `pixi add --manifest-path runners/manual-runner/env/{stage}/pixi.toml r-X` |
 | `No space left on device` | Clustering/polishing produces large intermediates | Free ≥ 20 GB; per-sample outputs are independent, so partial progress on other samples is preserved |
 
@@ -373,6 +398,8 @@ PY
 
 - **Never** execute a `bin/run_*.sh` command without showing it first and waiting for confirmation.
 - **Never** update `pipeline_state.json` for a stage that failed.
+- **Never** auto-retry a reference-coverage collapse with looser thresholds — fire SP6 and audit the reference first (SP6, v0.6.0).
+- **Side by side, never merged (v0.6.0):** classification-comparison outputs from `bin/compare_classifications.R` are diagnostic evidence only; the canonical taxonomy is always the primary method's, and comparison tables must never be averaged or merged into one taxonomy table.
 - **Default to running all three classification methods.** Skipping one requires an explicit scientist decision via SP5.
 - **Always** report large (e.g. >2x) disagreements between methods to the scientist as a finding to investigate, not a discrepancy to silently resolve in the report.
 - **Always** estimate and disclose runtime before launching `run_readbased_idtaxa.sh` or `run_consensus_idtaxa.sh` at full (non-subsampled) scale.

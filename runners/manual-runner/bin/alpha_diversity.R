@@ -98,7 +98,17 @@ alpha_metrics <- c("observed", "shannon", "faith") # faith requires a tree
 
 # Add alpha diversity to colData
 tse <- addAlpha(tse, assay.type = "counts", index = alpha_metrics)
-message("Alpha diversity metrics calculated and added to colData.")
+
+# Pielou evenness (Shannon / log(observed)) — parity with edna-agent v1.3.0.
+# Samples with 0 observed features get NA (log(0) is undefined).
+shannon_vals <- colData(tse)$shannon
+observed_vals <- colData(tse)$observed
+pielou_vals <- rep(NA_real_, length(shannon_vals))
+valid <- !is.na(shannon_vals) & !is.na(observed_vals) & observed_vals > 0
+pielou_vals[valid] <- shannon_vals[valid] / log(observed_vals[valid])
+colData(tse)$pielou <- pielou_vals
+alpha_metrics <- c(alpha_metrics, "pielou")
+message("Alpha diversity metrics calculated and added to colData (incl. Pielou evenness).")
 
 # Ensure the grouping variable is a factor
 if (!args$grouping_variable %in% names(colData(tse))) {
