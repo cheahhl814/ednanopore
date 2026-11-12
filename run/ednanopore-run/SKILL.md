@@ -10,6 +10,7 @@ triggers:
   - "Nanopore QC stage"
   - "Nanopore classify"
   - "Nanopore consensus clustering"
+disable-model-invocation: true
 ---
 
 # ednanopore-run

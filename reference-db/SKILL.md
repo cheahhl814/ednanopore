@@ -17,6 +17,7 @@ requires:
   - "Disk space: 16S_refseq FASTA + MMI ~50 MB; Kraken2 16S DB 9 MB (ncbi_16s_18s) to 300 MB (SILVA-based); opt-in IdTaxa SILVA file ~300 MB"
   - "minimap2, from this skill's root pixi.toml `cluster` env (for building the MMI from FASTA)"
   - "Optional: pixi env with DECIPHER (only for the opt-in idtaxa classifier mode)"
+disable-model-invocation: true
 ---
 
 # Sub-Skill: reference-db (ednanopore)

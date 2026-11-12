@@ -11,6 +11,7 @@ triggers:
   - "eDNA Nanopore diversity interpretation"
   - "eDNA Nanopore differential abundance"
   - "compare Nanopore classification methods"
+disable-model-invocation: true
 ---
 
 # ednanopore-interpret

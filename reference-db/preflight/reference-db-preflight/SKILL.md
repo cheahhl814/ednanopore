@@ -13,6 +13,7 @@ requires:
   - "minimap2 (for minimap2 mode's index-build check)"
   - "R ≥ 4.2 with DECIPHER (idtaxa mode only)"
   - "biodb-fetch sibling skill (idtaxa mode — the SILVA DECIPHER model is fetched via its `decipher` key; gdown is bundled in its env, so no venv workaround is needed)"
+disable-model-invocation: true
 ---
 
 # Sub-Skill: reference-db-preflight (ednanopore)

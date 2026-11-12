@@ -13,6 +13,7 @@ requires:
   - "biodb-fetch sibling skill, deployed + pixi-resolved (owns all download execution; its env bundles requests/gdown)"
   - "minimap2 (for the minimap2-mode build step)"
   - "python3 (for the tax_lookup TSV join step)"
+disable-model-invocation: true
 ---
 
 # Sub-Skill: reference-db-run (ednanopore)

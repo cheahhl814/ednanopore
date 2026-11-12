@@ -11,6 +11,7 @@ triggers:
   - "long-read 16S eDNA pipeline"
   - "16S Nanopore intake"
   - "eDNA Nanopore parameters"
+disable-model-invocation: true
 ---
 
 # ednanopore-intake

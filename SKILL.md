@@ -16,6 +16,7 @@ requires:
   - "Pixi (curl -fsSL https://pixi.sh/install.sh | bash) — single root pixi.toml with per-stage [feature.<env>] entries; run tools with `pixi run --manifest-path <skill-root>/pixi.toml -e <env>`"
   - "biodb-fetch skill (github.com/cheahhl814/biodb-fetch, deployed as a sibling skill) — dependency skill; owns reference-database download execution under the manifest.tsv contract (contract_version is verified by this skill's reference-db sub-skill)"
   - "git"
+disable-model-invocation: true
 ---
 
 # Meta-Skill: ednanopore
